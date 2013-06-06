@@ -1,0 +1,235 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "winres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// Neutral (Default) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_NEUD)
+#ifdef _WIN32
+LANGUAGE LANG_NEUTRAL, SUBLANG_DEFAULT
+#pragma code_page(1251)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Accelerator
+//
+
+IDR_ACCEL ACCELERATORS 
+BEGIN
+    "F",            ID_FIND,                VIRTKEY, CONTROL, NOINVERT
+    "K",            ID_DOUBLECLICK,         VIRTKEY, CONTROL, NOINVERT
+    "L",            ID_LOWERCASE,           VIRTKEY, CONTROL, NOINVERT
+    "Q",            ID_ALIGNX,              VIRTKEY, CONTROL, NOINVERT
+    "R",            ID_REPLACE,             VIRTKEY, CONTROL, NOINVERT
+    "U",            ID_UPPERCASE,           VIRTKEY, CONTROL, NOINVERT
+    "W",            ID_ALIGNY,              VIRTKEY, CONTROL, NOINVERT
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO 
+BEGIN
+    EDITDLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 1
+        RIGHTMARGIN, 305
+        TOPMARGIN, 1
+        HORZGUIDE, 15
+        HORZGUIDE, 17
+    END
+
+    ABOUTDLG, DIALOG
+    BEGIN
+        LEFTMARGIN, 20
+        RIGHTMARGIN, 192
+        TOPMARGIN, 6
+        BOTTOMMARGIN, 127
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+EDITDLG DIALOGEX 0, 0, 306, 132
+STYLE DS_SETFONT | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+CAPTION "MtmdEdit 3.2 for AutoCAD 2007-2010"
+MENU MENU1
+FONT 8, "MS Sans Serif", 0, 0, 0x1
+BEGIN
+    CONTROL         "",IDC_EDIT,"RichEdit20W",ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_NOHIDESEL | ES_WANTRETURN | WS_VSCROLL | WS_HSCROLL | WS_TABSTOP,1,17,304,101,WS_EX_CLIENTEDGE | 0x10000000L
+    PUSHBUTTON      "Ok",IDCANCEL,270,1,35,14
+    COMBOBOX        IDC_STYLE,1,1,70,58,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | CBS_SORT | WS_VSCROLL | WS_TABSTOP
+    EDITTEXT        IDC_HEIGHT,74,1,33,13,ES_AUTOHSCROLL
+    EDITTEXT        IDC_LINESPACE,110,1,36,13,ES_AUTOHSCROLL
+    EDITTEXT        IDC_WIDTH,149,1,36,13,ES_AUTOHSCROLL
+    PUSHBUTTON      "X",IDC_ALIGNX,196,1,16,14
+    PUSHBUTTON      "Y",IDC_ALIGNY,213,1,16,14
+    CONTROL         "",IDC_STATUSBAR,"msctls_statusbar32",0x103,0,118,304,14
+END
+
+ABOUTDLG DIALOG  0, 0, 214, 134
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+CAPTION "About MtmdEdit"
+FONT 8, "MS Sans Serif"
+BEGIN
+    CONTROL         "",IDC_TEXT,"RichEdit20W",0x19c4,20,6,172,101,0x10000000L
+    DEFPUSHBUTTON   "OK",IDCANCEL,81,113,50,14
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+MENU1 MENU 
+BEGIN
+    POPUP "&Edit"
+    BEGIN
+        MENUITEM "&Undo\tCtrl+Z",               ID_UNDO
+        MENUITEM "&Redo\tCtrl+Y",               ID_REDO
+        MENUITEM SEPARATOR
+        MENUITEM "Cu&t\tCtrl+X",                ID_CUT
+        MENUITEM "&Copy\tCtrl+C",               ID_COPY
+        MENUITEM "&Paste\tCtr+V",               ID_PASTE
+        MENUITEM SEPARATOR
+        MENUITEM "Select &All\tCtrl+A",         ID_SELECTALL
+        MENUITEM SEPARATOR
+        MENUITEM "&Find...\tCtrl+F",            ID_FIND
+        MENUITEM "&Replace...\tCtrl+R",         ID_REPLACE
+    END
+    POPUP "&Tools"
+    BEGIN
+        MENUITEM "Align &X\tCtrl+Q",            ID_ALIGNX
+        MENUITEM "Align &Y\tCtrl+W",            ID_ALIGNY
+        MENUITEM SEPARATOR
+        MENUITEM "&Uppercase\tCtrl+U",          ID_UPPERCASE
+        MENUITEM "&Lowercase\tCtrl+L",          ID_LOWERCASE
+    END
+    POPUP "Option&s"
+    BEGIN
+        MENUITEM "&Font...",                    ID_FONT
+        MENUITEM "&DoubleClick\tCtrl+K",        ID_DOUBLECLICK
+        MENUITEM "DblClick on Di&m",            ID_DBLCLKDIM
+        MENUITEM "DblClick on DT&EXT",          ID_DBLCLKDTEXT
+        MENUITEM "DblClick on M&TEXT",          ID_DBLCLKMTEXT
+        MENUITEM SEPARATOR
+        MENUITEM "Exit on Enter",               ID_OPTIONS_EXITONENTER
+        MENUITEM "Exit on Ctrl+Enter",          ID_OPTIONS_EXITONCTRLENTER
+        MENUITEM "Fast Y align",                ID_OPTIONS_FASTYALIGN
+    END
+    POPUP "&Help"
+    BEGIN
+        MENUITEM "&About",                      ID_ABOUT
+    END
+END
+
+#endif    // Neutral (Default) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Russian resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_RUS)
+#ifdef _WIN32
+LANGUAGE LANG_RUSSIAN, SUBLANG_DEFAULT
+#pragma code_page(1251)
+#endif //_WIN32
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE 
+BEGIN
+    IDS_DLGNAME             "MtmdEdit:TEDialog"
+    IDS_EDITPROMPT          "\nEdit text or [eXit]: "
+    IDS_KWORDEXIT           "eXit"
+    IDS_ALLOWEDENT          "\nOnly DTEXT, MTEXT and DIMENSION entities allowed"
+END
+
+#endif    // Russian resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// English (U.S.) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+#endif //_WIN32
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""winres.h""\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+#endif    // English (U.S.) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+
