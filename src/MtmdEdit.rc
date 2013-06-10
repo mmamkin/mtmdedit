@@ -16,17 +16,15 @@
 // Neutral (Default) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_NEUD)
-#ifdef _WIN32
 LANGUAGE LANG_NEUTRAL, SUBLANG_DEFAULT
 #pragma code_page(1251)
-#endif //_WIN32
 
 /////////////////////////////////////////////////////////////////////////////
 //
 // Accelerator
 //
 
-IDR_ACCEL ACCELERATORS 
+IDR_ACCEL ACCELERATORS
 BEGIN
     "F",            ID_FIND,                VIRTKEY, CONTROL, NOINVERT
     "K",            ID_DOUBLECLICK,         VIRTKEY, CONTROL, NOINVERT
@@ -44,7 +42,7 @@ END
 //
 
 #ifdef APSTUDIO_INVOKED
-GUIDELINES DESIGNINFO 
+GUIDELINES DESIGNINFO
 BEGIN
     EDITDLG, DIALOG
     BEGIN
@@ -76,7 +74,7 @@ STYLE DS_SETFONT | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU |
 CAPTION "MtmdEdit 3.3 for AutoCAD 2007-2010 and BricsCAD V10-12"
 FONT 8, "MS Sans Serif", 0, 0, 0x1
 BEGIN
-    CONTROL         "",IDC_EDIT,"RichEdit20W",ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_NOHIDESEL | ES_WANTRETURN | WS_VSCROLL | WS_HSCROLL | WS_TABSTOP,1,17,304,101,WS_EX_CLIENTEDGE | 0x10000000L
+    CONTROL         "",IDC_EDIT,"RichEdit20W",WS_VSCROLL | WS_HSCROLL | WS_TABSTOP | 0x11c4,1,17,304,101,WS_EX_CLIENTEDGE | 0x10000000L
     PUSHBUTTON      "Ok",IDCANCEL,270,1,35,14
     COMBOBOX        IDC_STYLE,1,1,70,58,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | CBS_SORT | WS_VSCROLL | WS_TABSTOP
     EDITTEXT        IDC_HEIGHT,74,1,33,13,ES_AUTOHSCROLL
@@ -87,7 +85,7 @@ BEGIN
     CONTROL         "",IDC_STATUSBAR,"msctls_statusbar32",0x103,0,118,304,14
 END
 
-ABOUTDLG DIALOG  0, 0, 214, 134
+ABOUTDLG DIALOG 0, 0, 214, 134
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
 CAPTION "About MtmdEdit"
 FONT 8, "MS Sans Serif"
@@ -101,20 +99,18 @@ END
 
 
 /////////////////////////////////////////////////////////////////////////////
-// Russian resources
+// Russian (Russia) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_RUS)
-#ifdef _WIN32
 LANGUAGE LANG_RUSSIAN, SUBLANG_DEFAULT
 #pragma code_page(1251)
-#endif //_WIN32
 
 /////////////////////////////////////////////////////////////////////////////
 //
 // Menu
 //
 
-MENU1 MENU 
+MENU1 MENU
 BEGIN
     POPUP "&Редактирование"
     BEGIN
@@ -177,13 +173,13 @@ END
 // String Table
 //
 
-STRINGTABLE 
+STRINGTABLE
 BEGIN
     IDS_DLGNAME             "MtmdEdit:TEDialog"
     IDS_EDITPROMPT          "\nРедактируйте текст или [X - выход]: "
     IDS_KWORDEXIT           "eXit"
     IDS_ALLOWEDENT          "\nРазрешены только объекты ТЕКСТ, МТЕКСТ и РАЗМЕР"
-    IDS_ABOUT               "MtmdEdit v.3.3\nдля AutoCAD 2007-2010 и BricsCAD V10-12\nCopyright © 2003-2011 Мансур Мамкин\n\nЕ-мейл: mailto:mmamkin@mail.ru\n\nДомашняя страничка http://mtmlab.ru\n\nБлагодарности:\n   Александру Щетинину\n   Александру Крутько\n   Александру Ривилису"
+    IDS_ABOUT               "MtmdEdit v.3.3\nдля AutoCAD 2007-2010 и BricsCAD V10-13\nCopyright © 2003-2013 Мансур Мамкин\n\nЕ-мейл: mailto:mmamkin@mail.ru\n\nДомашняя страничка http://mtmlab.ru\n\nБлагодарности:\n   Александру Щетинину\n   Александру Крутько\n   Александру Ривилису"
     IDS_TEXTSTYLE           "Стиль текста"
     IDS_TEXTHEIGHT          "Высота текста"
     IDS_LINESPACE           "Межстрочное расстояние"
@@ -191,7 +187,7 @@ BEGIN
     IDS_WIDTHFACTOR         "Коэффициент ширины"
 END
 
-STRINGTABLE 
+STRINGTABLE
 BEGIN
     IDS_ALIGNX              "Выровнять по горизонтали"
     IDS_ALIGNY              "Выровнять по вертикали"
@@ -202,25 +198,23 @@ BEGIN
     IDS_REPLACED            "Заменено %1!d! вхождений"
 END
 
-#endif    // Russian resources
+#endif    // Russian (Russia) resources
 /////////////////////////////////////////////////////////////////////////////
 
 
 /////////////////////////////////////////////////////////////////////////////
-// English (U.S.) resources
+// English (United States) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
-#ifdef _WIN32
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 #pragma code_page(1252)
-#endif //_WIN32
 
 /////////////////////////////////////////////////////////////////////////////
 //
 // Menu
 //
 
-MENU1 MENU 
+MENU1 MENU
 BEGIN
     POPUP "&Edit"
     BEGIN
@@ -288,13 +282,13 @@ END
 // String Table
 //
 
-STRINGTABLE 
+STRINGTABLE
 BEGIN
     IDS_DLGNAME             "MtmdEdit:TEDialog"
     IDS_EDITPROMPT          "\nEdit text or [eXit]: "
     IDS_KWORDEXIT           "eXit"
     IDS_ALLOWEDENT          "\nOnly DTEXT, MTEXT and DIMENSION entities allowed"
-    IDS_ABOUT               "MtmdEdit v.3.3\nfor AutoCAD 2007-2010 and BricsCAD V10-12\nCopyright © 2003-2011 Mansur Mamkin\n\nmailto:mmamkin@mail.ru\n\nCheck http://mtmlab.ru for updates\n\nThanks to:\n   Alexander Shchetinin\n   Alexander Krutko\n   Alexander Rivilis"
+    IDS_ABOUT               "MtmdEdit v.3.3\nfor AutoCAD 2007-2010 and BricsCAD V10-13\nCopyright © 2003-2013 Mansur Mamkin\n\nmailto:mmamkin@mail.ru\n\nCheck http://mtmlab.ru for updates\n\nThanks to:\n   Alexander Shchetinin\n   Alexander Krutko\n   Alexander Rivilis"
     IDS_TEXTSTYLE           "Text style"
     IDS_TEXTHEIGHT          "Text height"
     IDS_LINESPACE           "Line space"
@@ -302,7 +296,7 @@ BEGIN
     IDS_WIDTHFACTOR         "Width factor"
 END
 
-STRINGTABLE 
+STRINGTABLE
 BEGIN
     IDS_ALIGNX              "Align horizontally"
     IDS_ALIGNY              "Align vertically"
@@ -313,7 +307,7 @@ BEGIN
     IDS_REPLACED            "%1!d! occurrences replaced"
 END
 
-#endif    // English (U.S.) resources
+#endif    // English (United States) resources
 /////////////////////////////////////////////////////////////////////////////
 
 
