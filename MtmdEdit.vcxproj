@@ -1,0 +1,61 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ProjectConfiguration Include="arx2012|Win32">
+      <Configuration>arx2012</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="arx2012|x64">
+      <Configuration>arx2012</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="arx2013|Win32">
+      <Configuration>arx2013</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="arx2013|x64">
+      <Configuration>arx2013</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="brx13|Win32">
+      <Configuration>brx13</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="brx13|x64">
+      <Configuration>brx13</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseOfMfc>Dynamic</UseOfMfc>
+    <CharacterSet>Unicode</CharacterSet>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+  </PropertyGroup>
+  <Import Project="$(ProjectDir)_Mtmd.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <Import Project="$(ProjectDir)_Mtmd.targets" />
+  <ItemGroup>
+    <ClCompile Include="src\acrxEntryPoint.cpp" />
+    <ClCompile Include="src\DocData.cpp" />
+    <ClCompile Include="src\MtmdEdit.cpp" />
+    <ClCompile Include="src\TEDialog.cpp" />
+    <ClCompile Include="src\rEditorReactor.cpp" />
+    <ClCompile Include="src\StdAfx.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\DocData.h" />
+    <ClInclude Include="src\MDITabs.h" />
+    <ClInclude Include="src\rEditorReactor.h" />
+    <ClInclude Include="src\Resource.h" />
+    <ClInclude Include="src\StdAfx.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="src\MtmdEdit.rc" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>
