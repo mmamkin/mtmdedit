@@ -7,6 +7,15 @@ of DTEXT, MTEXT objects and dimension text.
 
 History
 ------------------
+v3.3 - 2013/06/17
++ Sources uploaded to code.google.com/p/mtmdedit/
++ Solution structure refactored, now there is one project for all platforms and CAD-versions
+
+v3.3 beta - 2010/09/10
+* Bug fixes
++ Russian interface added (it's used automatically on russian Windows)
++ Now you can click on link in "About" window
+
 v3.2 - 2010/08/31
 * Fixed bug with AcdbField handling
 * Double click handler rewritten
