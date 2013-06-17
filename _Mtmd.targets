@@ -21,8 +21,8 @@
   <PropertyGroup Condition="'$(Configuration)'=='brx13'" Label="Configuration">
     <TargetName Condition="'$(Platform)'=='Win32'">$(ProjectName).13</TargetName>
     <TargetName Condition="'$(Platform)'=='x64'">$(ProjectName).13.x64</TargetName>
-    <MtmdPreprocessorDefinitions Condition="'$(Platform)'=='Win32'">WIN32;_WINDOWS;_AFXEXT;_AFXDLL;ACRXAPP</MtmdPreprocessorDefinitions>
-    <MtmdPreprocessorDefinitions Condition="'$(Platform)'=='x64'">WIN64;_WINDOWS;_AFXEXT;_AFXDLL;ACRXAPP</MtmdPreprocessorDefinitions>
+    <MtmdPreprocessorDefinitions Condition="'$(Platform)'=='Win32'">WIN32;_WINDOWS;_AFXEXT;_AFXDLL;ACRXAPP;_BRX</MtmdPreprocessorDefinitions>
+    <MtmdPreprocessorDefinitions Condition="'$(Platform)'=='x64'">WIN64;_WINDOWS;_AFXEXT;_AFXDLL;ACRXAPP;_BRX</MtmdPreprocessorDefinitions>
     <TargetExt>.brx</TargetExt>
     <ARXInclude Condition="'$(Platform)'=='Win32'">$(BRX13)inc;$(BRX13)inc32</ARXInclude>
     <ARXInclude Condition="'$(Platform)'=='x64'">$(BRX13)inc;$(BRX13)inc64</ARXInclude>
