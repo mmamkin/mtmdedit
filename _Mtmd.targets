@@ -40,6 +40,17 @@
     <ARXLibs Condition="'$(Platform)'=='Win32'">$(BRX14)lib32</ARXLibs>
     <ARXLibs Condition="'$(Platform)'=='x64'">$(BRX14)lib64</ARXLibs>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='brx15'" Label="Configuration">
+    <TargetName Condition="'$(Platform)'=='Win32'">$(ProjectName).15</TargetName>
+    <TargetName Condition="'$(Platform)'=='x64'">$(ProjectName).15.x64</TargetName>
+    <MtmdPreprocessorDefinitions Condition="'$(Platform)'=='Win32'">WIN32;_WINDOWS;_AFXEXT;_AFXDLL;ACRXAPP;_BRX</MtmdPreprocessorDefinitions>
+    <MtmdPreprocessorDefinitions Condition="'$(Platform)'=='x64'">WIN64;_WINDOWS;_AFXEXT;_AFXDLL;ACRXAPP;_BRX</MtmdPreprocessorDefinitions>
+    <TargetExt>.brx</TargetExt>
+    <ARXInclude Condition="'$(Platform)'=='Win32'">$(BRX15)inc;$(BRX15)inc32</ARXInclude>
+    <ARXInclude Condition="'$(Platform)'=='x64'">$(BRX15)inc;$(BRX15)inc64</ARXInclude>
+    <ARXLibs Condition="'$(Platform)'=='Win32'">$(BRX15)lib32</ARXLibs>
+    <ARXLibs Condition="'$(Platform)'=='x64'">$(BRX15)lib64</ARXLibs>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <Optimization>Disabled</Optimization>

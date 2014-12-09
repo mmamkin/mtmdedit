@@ -6,6 +6,7 @@
     <ARX2010>E:\SDK\ARX2010\</ARX2010>
     <BRX13>E:\SDK\BRX13\</BRX13>
     <BRX14>E:\SDK\BRX14\</BRX14>
+    <BRX15>E:\SDK\BRX15\</BRX15>
     <IntDir>Build\$(Configuration)-$(Platform)\</IntDir>
     <OutDir>$(IntDir)</OutDir>
   </PropertyGroup>
@@ -14,5 +15,6 @@
     <PlatformToolset Condition="'$(Configuration)'=='arx2013'">v100</PlatformToolset>
     <PlatformToolset Condition="'$(Configuration)'=='brx13'">v100</PlatformToolset>
     <PlatformToolset Condition="'$(Configuration)'=='brx14'">v100</PlatformToolset>
+    <PlatformToolset Condition="'$(Configuration)'=='brx15'">v100</PlatformToolset>
   </PropertyGroup>
 </Project>
