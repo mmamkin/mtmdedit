@@ -1,5 +1,5 @@
-/ipch/.*$
-/Out/.*$
-/Build/.*$
-/.*\.suo$
-/.*\.sdf$
+ipch/.*$
+Out/.*$
+Build/.*$
+.*\.suo$
+.*\.sdf$
