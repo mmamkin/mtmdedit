@@ -1,6 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Label="Globals">
+    <ARX2015>E:\SDK\ARX2015\</ARX2015>
     <ARX2013>E:\SDK\ARX2013\</ARX2013>
     <ARX2012>E:\SDK\ARX2012\</ARX2012>
     <ARX2010>E:\SDK\ARX2010\</ARX2010>
@@ -13,6 +14,7 @@
   <PropertyGroup Label="Configuration">
     <PlatformToolset Condition="'$(Configuration)'=='arx2012'">v90</PlatformToolset>
     <PlatformToolset Condition="'$(Configuration)'=='arx2013'">v100</PlatformToolset>
+    <PlatformToolset Condition="'$(Configuration)'=='arx2015'">v110</PlatformToolset>
     <PlatformToolset Condition="'$(Configuration)'=='brx13'">v100</PlatformToolset>
     <PlatformToolset Condition="'$(Configuration)'=='brx14'">v100</PlatformToolset>
     <PlatformToolset Condition="'$(Configuration)'=='brx15'">v100</PlatformToolset>

@@ -18,6 +18,15 @@
     <ARXInclude>$(ARX2013)inc;$(ARX2013)inc-$(Platform)</ARXInclude>
     <ARXLibs>$(ARX2013)Lib-$(Platform)</ARXLibs>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='arx2015'" Label="Configuration">
+    <TargetName Condition="'$(Platform)'=='Win32'">$(ProjectName)2015x32</TargetName>
+    <TargetName Condition="'$(Platform)'=='x64'">$(ProjectName)2015x64</TargetName>
+    <MtmdPreprocessorDefinitions Condition="'$(Platform)'=='Win32'">WIN32;_WINDOWS;_AFXEXT;_AFXDLL;ACRXAPP;_ACADTARGET=19</MtmdPreprocessorDefinitions>
+    <MtmdPreprocessorDefinitions Condition="'$(Platform)'=='x64'">WIN64;_WINDOWS;_AFXEXT;_AFXDLL;ACRXAPP;_ACADTARGET=19</MtmdPreprocessorDefinitions>
+    <TargetExt>.arx</TargetExt>
+    <ARXInclude>$(ARX2015)inc;$(ARX2015)inc-$(Platform)</ARXInclude>
+    <ARXLibs>$(ARX2015)Lib-$(Platform)</ARXLibs>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='brx13'" Label="Configuration">
     <TargetName Condition="'$(Platform)'=='Win32'">$(ProjectName).13</TargetName>
     <TargetName Condition="'$(Platform)'=='x64'">$(ProjectName).13.x64</TargetName>
