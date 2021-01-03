@@ -1,6 +1,8 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 11.00
-# Visual Studio 2010
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28306.52
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MtmdEdit", "MtmdEdit.vcxproj", "{001ACC4F-DB1D-7561-794A-DCA1B8E79534}"
 EndProject
 Global
@@ -9,6 +11,10 @@ Global
 		arx2012|x64 = arx2012|x64
 		arx2013|Win32 = arx2013|Win32
 		arx2013|x64 = arx2013|x64
+		arx2018|Win32 = arx2018|Win32
+		arx2018|x64 = arx2018|x64
+		arx2019|Win32 = arx2019|Win32
+		arx2019|x64 = arx2019|x64
 		brx13|Win32 = brx13|Win32
 		brx13|x64 = brx13|x64
 		brx14|Win32 = brx14|Win32
@@ -21,14 +27,30 @@ Global
 		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.arx2012|Win32.Build.0 = arx2012|Win32
 		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.arx2012|x64.ActiveCfg = arx2012|x64
 		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.arx2012|x64.Build.0 = arx2012|x64
+
 		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.arx2013|Win32.ActiveCfg = arx2013|Win32
 		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.arx2013|Win32.Build.0 = arx2013|Win32
 		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.arx2013|x64.ActiveCfg = arx2013|x64
 		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.arx2013|x64.Build.0 = arx2013|x64
+
+		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.arx2018|Win32.ActiveCfg = arx2018|Win32
+		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.arx2018|Win32.Build.0 = arx2018|Win32
+		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.arx2018|x64.ActiveCfg = arx2018|x64
+		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.arx2018|x64.Build.0 = arx2018|x64
+
+		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.arx2019|Win32.ActiveCfg = arx2019|Win32
+		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.arx2019|Win32.Build.0 = arx2019|Win32
+		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.arx2019|x64.ActiveCfg = arx2019|x64
+		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.arx2019|x64.Build.0 = arx2019|x64
+
 		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.brx13|Win32.ActiveCfg = brx13|Win32
 		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.brx13|Win32.Build.0 = brx13|Win32
 		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.brx13|x64.ActiveCfg = brx13|x64
 		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.brx13|x64.Build.0 = brx13|x64
+		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.brx14|Win32.ActiveCfg = brx14|Win32
+		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.brx14|Win32.Build.0 = brx14|Win32
+		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.brx14|x64.ActiveCfg = brx14|x64
+		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.brx14|x64.Build.0 = brx14|x64
 		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.brx15|Win32.ActiveCfg = brx15|Win32
 		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.brx15|Win32.Build.0 = brx15|Win32
 		{001ACC4F-DB1D-7561-794A-DCA1B8E79534}.brx15|x64.ActiveCfg = brx15|x64
@@ -36,5 +58,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {9EB7AE44-67A2-4ADB-B5D3-CCD90C0D7909}
 	EndGlobalSection
 EndGlobal

@@ -13,7 +13,7 @@
 #undef APSTUDIO_READONLY_SYMBOLS
 
 /////////////////////////////////////////////////////////////////////////////
-// Neutral (Default) resources
+// Нейтральный (по умолчанию) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_NEUD)
 LANGUAGE LANG_NEUTRAL, SUBLANG_DEFAULT
@@ -47,8 +47,9 @@ BEGIN
     EDITDLG, DIALOG
     BEGIN
         LEFTMARGIN, 1
-        RIGHTMARGIN, 305
+        RIGHTMARGIN, 360
         TOPMARGIN, 1
+        BOTTOMMARGIN, 132
         HORZGUIDE, 15
         HORZGUIDE, 17
     END
@@ -69,20 +70,20 @@ END
 // Dialog
 //
 
-EDITDLG DIALOGEX 0, 0, 306, 132
+EDITDLG DIALOGEX 0, 0, 361, 160
 STYLE DS_SETFONT | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
-CAPTION "MtmdEdit 3.3"
+CAPTION "MtmdEdit 3.4beta"
 FONT 8, "MS Sans Serif", 0, 0, 0x1
 BEGIN
-    CONTROL         "",IDC_EDIT,"RichEdit20W",ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_NOHIDESEL | ES_WANTRETURN | WS_VSCROLL | WS_HSCROLL | WS_TABSTOP,1,17,304,101,WS_EX_CLIENTEDGE | 0x10000000L
-    PUSHBUTTON      "Ok",IDCANCEL,270,1,35,14
-    COMBOBOX        IDC_STYLE,1,1,70,58,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | CBS_SORT | WS_VSCROLL | WS_TABSTOP
-    EDITTEXT        IDC_HEIGHT,74,1,33,13,ES_AUTOHSCROLL
-    EDITTEXT        IDC_LINESPACE,110,1,36,13,ES_AUTOHSCROLL
-    EDITTEXT        IDC_WIDTH,149,1,36,13,ES_AUTOHSCROLL
-    PUSHBUTTON      "X",IDC_ALIGNX,196,1,16,14
-    PUSHBUTTON      "Y",IDC_ALIGNY,213,1,16,14
-    CONTROL         "",IDC_STATUSBAR,"msctls_statusbar32",0x103,0,118,304,14
+    CONTROL         "",IDC_EDIT,"RichEdit20W",ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_NOHIDESEL | ES_WANTRETURN | WS_VSCROLL | WS_HSCROLL | WS_TABSTOP,1,17,359,126,WS_EX_CLIENTEDGE | 0x10000000L
+    PUSHBUTTON      "Ok",IDCANCEL,325,1,35,14
+    COMBOBOX        IDC_STYLE,1,1,95,58,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | CBS_SORT | WS_VSCROLL | WS_TABSTOP
+    EDITTEXT        IDC_HEIGHT,99,1,44,13,ES_AUTOHSCROLL
+    EDITTEXT        IDC_LINESPACE,145,1,45,13,ES_AUTOHSCROLL
+    EDITTEXT        IDC_WIDTH,193,1,49,13,ES_AUTOHSCROLL
+    PUSHBUTTON      "X",IDC_ALIGNX,261,1,16,14
+    PUSHBUTTON      "Y",IDC_ALIGNY,279,1,16,14
+    CONTROL         "",IDC_STATUSBAR,"msctls_statusbar32",0x103,0,146,360,14
 END
 
 ABOUTDLG DIALOG 0, 0, 214, 134
@@ -94,12 +95,23 @@ BEGIN
     DEFPUSHBUTTON   "OK",IDCANCEL,81,113,50,14
 END
 
-#endif    // Neutral (Default) resources
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// AFX_DIALOG_LAYOUT
+//
+
+EDITDLG AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+#endif    // Нейтральный (по умолчанию) resources
 /////////////////////////////////////////////////////////////////////////////
 
 
 /////////////////////////////////////////////////////////////////////////////
-// Russian (Russia) resources
+// Русский (Россия) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_RUS)
 LANGUAGE LANG_RUSSIAN, SUBLANG_DEFAULT
@@ -179,7 +191,7 @@ BEGIN
     IDS_EDITPROMPT          "\nРедактируйте текст или [X - выход]: "
     IDS_KWORDEXIT           "eXit"
     IDS_ALLOWEDENT          "\nРазрешены только объекты ТЕКСТ, МТЕКСТ и РАЗМЕР"
-    IDS_ABOUT               "MtmdEdit v.3.3\nдля AutoCAD 2007-2010 и BricsCAD V10-13\nCopyright © 2003-2013 Мансур Мамкин\n\nЕ-мейл: mailto:mmamkin@mail.ru\n\nДомашняя страничка http://mtmlab.ru\n\nБлагодарности:\n   Александру Щетинину\n   Александру Крутько\n   Александру Ривилису"
+    IDS_ABOUT               "MtmdEdit v.3.4beta\nдля AutoCAD 2019\nCopyright © 2020 Мансур Мамкин\n\nЕ-мейл: mailto:mmamkin@mail.ru\n\nДомашняя страничка http://mtmlab.ru"
     IDS_TEXTSTYLE           "Стиль текста"
     IDS_TEXTHEIGHT          "Высота текста"
     IDS_LINESPACE           "Межстрочное расстояние"
@@ -198,12 +210,12 @@ BEGIN
     IDS_REPLACED            "Заменено %1!d! вхождений"
 END
 
-#endif    // Russian (Russia) resources
+#endif    // Русский (Россия) resources
 /////////////////////////////////////////////////////////////////////////////
 
 
 /////////////////////////////////////////////////////////////////////////////
-// English (United States) resources
+// Английский (США) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
@@ -288,7 +300,7 @@ BEGIN
     IDS_EDITPROMPT          "\nEdit text or [eXit]: "
     IDS_KWORDEXIT           "eXit"
     IDS_ALLOWEDENT          "\nOnly DTEXT, MTEXT and DIMENSION entities allowed"
-    IDS_ABOUT               "MtmdEdit v.3.3\nfor AutoCAD 2007-2010 and BricsCAD V10-13\nCopyright © 2003-2013 Mansur Mamkin\n\nmailto:mmamkin@mail.ru\n\nCheck http://mtmlab.ru for updates\n\nThanks to:\n   Alexander Shchetinin\n   Alexander Krutko\n   Alexander Rivilis"
+    IDS_ABOUT               "MtmdEdit v.3.4beta\nfor AutoCAD 2019\nCopyright © 2019 Mansur Mamkin\n\nmailto:mmamkin@mail.ru\n\nCheck http://mtmlab.ru for updates"
     IDS_TEXTSTYLE           "Text style"
     IDS_TEXTHEIGHT          "Text height"
     IDS_LINESPACE           "Line space"
@@ -307,7 +319,7 @@ BEGIN
     IDS_REPLACED            "%1!d! occurrences replaced"
 END
 
-#endif    // English (United States) resources
+#endif    // Английский (США) resources
 /////////////////////////////////////////////////////////////////////////////
 
 

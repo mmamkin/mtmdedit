@@ -33,8 +33,11 @@ typedef enum TETextType { UNKNOWN, DTEXT, MTEXT, DIMENSION } TETextType;
 //const TCHAR* texttypenames[];
 extern DWORD DoubleClick,DoubleClickbegin, DblClkDim, DblClkDTEXT, 
 	DblClkMTEXT, ExitOnEnter, ExitOnCtrlEnter, FastYAlign;
+#if _ACADTARGET > 22
+extern bool DoubleClickFilter(MSG *pMsg);
+#else
 extern BOOL DoubleClickFilter(MSG *pMsg);
-
+#endif
 //-----------------------------------------------------------------------------
 class CMsg : public CString {
 private:
@@ -81,9 +84,11 @@ protected:
 	virtual void DoDataExchange (CDataExchange *pDX) ;
     //{{AFX_MSG(CTEDialog)
 	afx_msg LRESULT OnAcadKeepFocus (WPARAM, LPARAM) ;
-	afx_msg LRESULT OnIdle (WPARAM, LPARAM) ;
+	//afx_msg LRESULT OnIdle (WPARAM, LPARAM) ;
+	afx_msg void OnKickIdle();
 	afx_msg LRESULT OnTESelChange (WPARAM, LPARAM) ;
-	afx_msg LRESULT OnSetCursor (WPARAM, LPARAM) ;
+	//afx_msg LRESULT OnSetCursor (WPARAM, LPARAM) ;
+	afx_msg BOOL OnSetCursor(CWnd*, UINT, UINT);
 	afx_msg LRESULT OnContextMenu(WPARAM, LPARAM);
 	afx_msg void OnClose();
 	afx_msg void OnEnChangeEdit1();

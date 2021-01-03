@@ -36,14 +36,14 @@ public:
 		AcRx::AppRetCode retCode =AcRxArxApp::On_kInitAppMsg (pkt);
 		//CTEDialog::hRicheditLib = LoadLibrary(_T("riched20.dll"));
 		CTEDialog::UpdateRegistry();
-		acedRegisterFilterWinMsg(&DoubleClickFilter);
+		acedRegisterFilterWinMsg(DoubleClickFilter);
 		//if (DoubleClick!=0) MTMeditorreactor::reac = new MTMeditorreactor(true);
 		return (retCode);
 	}
 
 	virtual AcRx::AppRetCode On_kUnloadAppMsg (void *pkt) {
 		AcRx::AppRetCode retCode =AcRxArxApp::On_kUnloadAppMsg (pkt);
-		acedRemoveFilterWinMsg(&DoubleClickFilter);
+		acedRemoveFilterWinMsg(DoubleClickFilter);
 		//if (DoubleClick && MTMeditorreactor::reac) 
 		//	delete MTMeditorreactor::reac;
 		//FreeLibrary(CTEDialog::hRicheditLib);
@@ -59,7 +59,7 @@ public:
 		struct resbuf* filterlist = acutBuildList(-4, _T("<or"),RTDXF0, _T("TEXT"),
 			RTDXF0, _T("MTEXT"),RTDXF0, _T("DIMENSION"), -4, _T("or>"), 0);
 		CTEDialog* & dlg = CTEDialog::dlg;
-		if (dlg == NULL) dlg = new CTEDialog();
+		if (dlg == NULL) dlg = new CTEDialog(CWnd::FromHandle(adsw_acadMainWnd()));
 		int result=acedSSGet(NULL, NULL, NULL, filterlist, dlg->sset);
 		if (RTNORM == result)
 		{
@@ -74,7 +74,6 @@ public:
 		acutRelRb(filterlist);
 	}
 } ;
-
 //-----------------------------------------------------------------------------
 IMPLEMENT_ARX_ENTRYPOINT(CMtmdEditApp)
 

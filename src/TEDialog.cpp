@@ -24,9 +24,11 @@ IMPLEMENT_DYNAMIC (CTEDialog, CAcUiDialog)
 BEGIN_MESSAGE_MAP(CTEDialog, CAcUiDialog)
 	//{{AFX_MSG_MAP(CTEDialog)
 	ON_MESSAGE(WM_ACAD_KEEPFOCUS, OnAcadKeepFocus)
-	ON_MESSAGE(WM_IDLEUPDATECMDUI, OnIdle)
+//	ON_MESSAGE(WM_IDLEUPDATECMDUI, OnIdle)
+	ON_MESSAGE(WM_KICKIDLE, OnIdle)
 	ON_MESSAGE(WM_TESELCHANGE, OnTESelChange)
-	ON_MESSAGE(WM_SETCURSOR, OnSetCursor)
+	//ON_MESSAGE(WM_SETCURSOR, OnSetCursor)
+	ON_WM_SETCURSOR()
 	ON_MESSAGE(WM_CONTEXTMENU, OnContextMenu)
 	ON_WM_SIZE()
 	ON_EN_CHANGE(IDC_EDIT, &CTEDialog::OnEnChangeEdit1)
@@ -83,12 +85,16 @@ HMENU MyLoadMenu(HINSTANCE hInst, LPCTSTR MenuName) {
 	return ::LoadMenuIndirect(lpsz);
 }
 //-----------------------------------------------------------------------------
+#if _ACADTARGET > 22
+bool DoubleClickFilter(MSG *pMsg) {
+#else
 BOOL DoubleClickFilter(MSG *pMsg) {
+#endif
 	// Process only if DBLCLK message in drawing area
-	if (pMsg->message != WM_LBUTTONDBLCLK) return FALSE; 
-	if (!DoubleClick) return FALSE;
-	if (acedGetAcadDwgView()->m_hWnd != pMsg->hwnd) return FALSE;
-	BOOL res = FALSE;
+	if (pMsg->message != WM_LBUTTONDBLCLK) return false;
+	if (!DoubleClick) return false;
+	if (acedGetAcadDwgView()->m_hWnd != pMsg->hwnd) return false;
+	bool res = false;
 	acedDwgPoint dcsPt,ucsPt;  CPoint winPt(LOWORD(pMsg->lParam), HIWORD(pMsg->lParam));
 	// Translate cursor coords into DCS
 	acedCoordFromPixelToWorld(winPt, dcsPt);
@@ -148,7 +154,7 @@ BOOL DoubleClickFilter(MSG *pMsg) {
 					(DblClkMTEXT && pEnt->isKindOf(AcDbMText::desc())) ||
 					(DblClkDim && pEnt->isKindOf(AcDbDimension::desc()))) 
 				{
-					res = TRUE;
+					res = true;
 					acDocManager->sendStringToExecute(curDoc(),_T("TE\n"),false,false,false);
 				}
 				pEnt->close();
@@ -299,54 +305,8 @@ void CTEDialog::Cleanup() {
 //-----------------------------------------------------------------------------
 void CTEDialog::ShowDlg() {
 	AfxInitRichEdit2();
-	/*
-	if (m_hWnd == NULL) { 
-		dlg->Create(EDITDLG);
-	}
-	else {
-		UpdateMenuItems();
-		UpdateStatus();
- 		dlg->ShowWindow(SW_SHOW);
-	}
-	TCHAR result[132];
-	acedRegisterFilterWinMsg(&FilterWinMsg);
-	while (true)
-	{
-		acedInitGet(0, CMsg(IDS_KWORDEXIT));
-		int status = acedGetKword(CMsg(IDS_EDITPROMPT), (TCHAR*)result);
-		if (RTNORM != status) break;
-		if (_tcscmp(result, CMsg(IDS_KWORDEXIT)) == 0) break;
-	}
-	acedRemoveFilterWinMsg(&FilterWinMsg);
-	*/
-	//dlg->ShowWindow(SW_HIDE);
-
 	DoModal();
  }
-//-----------------------------------------------------------------------------
-/*
-void CTEDialog::ShowDlg() {
-	AfxInitRichEdit2();
-	if (m_hWnd == NULL) { 
-		dlg->Create(EDITDLG);
-	}
-	else {
-		UpdateMenuItems();
-		UpdateStatus();
- 		dlg->ShowWindow(SW_SHOW);
-	}
-	TCHAR result[132];
-	acedRegisterFilterWinMsg(&FilterWinMsg);
-	while (true)
-	{
-		acedInitGet(0, CMsg(IDS_KWORDEXIT));
-		int status = acedGetKword(CMsg(IDS_EDITPROMPT), (TCHAR*)result);
-		if (RTNORM != status) break;
-		if (_tcscmp(result, CMsg(IDS_KWORDEXIT)) == 0) break;
-	}
-	acedRemoveFilterWinMsg(&FilterWinMsg);
-	//dlg->ShowWindow(SW_HIDE);
- }*/
 //-----------------------------------------------------------------------------
 void CTEDialog::OnInitDialogStart() {
 }
@@ -493,13 +453,14 @@ void CTEDialog::SetFont(LPTSTR FontName, int FontSize)
 	::SendMessage(hwndEdit, EM_SETCHARFORMAT, 0, LPARAM(&chf));
 }
 //-----------------------------------------------------------------------------
-LRESULT CTEDialog::OnSetCursor (WPARAM wParam, LPARAM lParam) {
-	if (ControlOnIdle != (HWND)wParam)
+//LRESULT CTEDialog::OnSetCursor (WPARAM wParam, LPARAM lParam) {
+BOOL CTEDialog::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message) {
+	if (ControlOnIdle != pWnd->GetSafeHwnd())
 	{
-		ControlOnIdle = (HWND)wParam;
+		ControlOnIdle = pWnd->GetSafeHwnd();
 		bNeedUpdStbar = true;
 	}
-	return false;
+	return CAcUiDialog::OnSetCursor(pWnd, nHitTest, message);
 }
 //-----------------------------------------------------------------------------
 void CTEDialog::OnUCase()
@@ -637,7 +598,7 @@ void CTEDialog::SortDText()
 bool CTEDialog::ParseSset() {
     AcDbEntity * pEnt;
 	ads_name ent;
-	long slen;
+	Adesk::Int32 slen;
 	acedSSLength(sset,&slen);
 	if (slen==0) return false;
 	for (long i=0;i<slen;i++)
@@ -1259,7 +1220,7 @@ LRESULT CTEDialog::OnFindReplaceMessage(WPARAM wParam, LPARAM lParam)
 	else if (pFindDlg->ReplaceCurrent())
 	{
 		if (TryFoundMore(fr)) 
-			::SendMessage(hwndEdit, EM_REPLACESEL, TRUE, long(fr.lpstrReplaceWith));
+			::SendMessage(hwndEdit, EM_REPLACESEL, TRUE, LPARAM(fr.lpstrReplaceWith));
 		else
 			::MessageBox((pFindDlg)?pFindDlg->m_hWnd:hwndDialog, CMsg(IDS_SEARCHFIN), CMsg(IDS_INFO), MB_OK);
 	}
@@ -1267,7 +1228,7 @@ LRESULT CTEDialog::OnFindReplaceMessage(WPARAM wParam, LPARAM lParam)
 		int i = 0;
 		CString msg;
 		while (TryFoundMore(fr)) {
-			::SendMessage(hwndEdit, EM_REPLACESEL, TRUE, long(fr.lpstrReplaceWith));
+			::SendMessage(hwndEdit, EM_REPLACESEL, TRUE, LPARAM(fr.lpstrReplaceWith));
 			i++;
 		}
 		if (i==0)

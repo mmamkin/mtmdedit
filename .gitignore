@@ -1,0 +1,6 @@
+ipch/
+Out/
+Build/
+\.vs/
+MtmdEdit.vcxproj.user
+*.aps
