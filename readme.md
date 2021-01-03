@@ -3,6 +3,11 @@ of DTEXT, MTEXT objects and dimension text.
 
 ###History
 
+v3.5 - 2021/01/03
+
+* Added support for AutoCAD 2018, 2019, 2020
+* Dropped support for doubleclick editing
+
 v3.3 - 2013/06/17
 
 + Sources uploaded to <http://code.google.com/p/mtmdedit/>
