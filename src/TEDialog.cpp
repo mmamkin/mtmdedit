@@ -8,13 +8,9 @@ LPCTSTR texttypenames[]={_T("UNKNOWN"),_T("DTEXT"),_T("MTEXT"),_T("DIM")};
 LPCTSTR pAppInfoLocFull = _T("Software\\Mtmlab\\MtmdEdit");
 LPCTSTR AppName = _T("MTMDEDIT");
 LPCTSTR CommandName = _T("TE");
-LPCTSTR sDoubleClickEdit = _T("DoubleClickEdit");
 LPCTSTR sFontSize = _T("FontSize");
 LPCTSTR sFontName = _T("FontName");
 LPCTSTR sDefFontName = _T("MS Sans Serif");
-LPCTSTR sDblClkEditDim = _T("DblClkEditDim");
-LPCTSTR sDblClkEditDTEXT = _T("DblClkEditDTEXT");
-LPCTSTR sDblClkEditMTEXT = _T("DblClkEditMTEXT");
 LPCTSTR sExitOnEnter = _T("ExitOnEnter");
 LPCTSTR sExitOnCtrlEnter = _T("ExitOnCtrlEnter");
 LPCTSTR sFastYAlign = _T("FastYAlign");
@@ -23,11 +19,8 @@ IMPLEMENT_DYNAMIC (CTEDialog, CAcUiDialog)
 
 BEGIN_MESSAGE_MAP(CTEDialog, CAcUiDialog)
 	//{{AFX_MSG_MAP(CTEDialog)
-	ON_MESSAGE(WM_ACAD_KEEPFOCUS, OnAcadKeepFocus)
-//	ON_MESSAGE(WM_IDLEUPDATECMDUI, OnIdle)
-	ON_MESSAGE(WM_KICKIDLE, OnIdle)
+	ON_MESSAGE(WM_KICKIDLE, OnKickIdle)
 	ON_MESSAGE(WM_TESELCHANGE, OnTESelChange)
-	//ON_MESSAGE(WM_SETCURSOR, OnSetCursor)
 	ON_WM_SETCURSOR()
 	ON_MESSAGE(WM_CONTEXTMENU, OnContextMenu)
 	ON_WM_SIZE()
@@ -51,27 +44,20 @@ BEGIN_MESSAGE_MAP(CTEDialog, CAcUiDialog)
 	ON_REGISTERED_MESSAGE(FindReplaceDialogMessage, OnFindReplaceMessage)
 	//}}AFX_MSG_MAP
 	ON_COMMAND(ID_FONT, &CTEDialog::OnFont)
-	ON_COMMAND(ID_DOUBLECLICK, &CTEDialog::OnDoubleclick)
-	ON_COMMAND(ID_DBLCLKDTEXT, &CTEDialog::OnDblDTEXT)
-	ON_COMMAND(ID_DBLCLKMTEXT, &CTEDialog::OnDblMTEXT)
-	ON_COMMAND(ID_DBLCLKDIM, &CTEDialog::OnDblDIM)
 	ON_COMMAND(ID_OPTIONS_EXITONENTER, &CTEDialog::OnOptionExitOnEnter)
 	ON_COMMAND(ID_OPTIONS_EXITONCTRLENTER, &CTEDialog::OnOptionExitOnCtrlEnter)
 	ON_COMMAND(ID_OPTIONS_FASTYALIGN, &CTEDialog::OnOptionFastYAlign)
 END_MESSAGE_MAP()
-//	ON_MESSAGE_VOID(WM_SIZE, OnSize)
 
 //-----------------------------------------------------------------------------
 CTEDialog *CTEDialog::dlg = NULL;
 CFindReplaceDialog *CTEDialog::pFindDlg = NULL;
 UINT CTEDialog::FindReplaceDialogMessage = RegisterWindowMessage(FINDMSGSTRING);
-DWORD DoubleClick=0,DoubleClickbegin=0, DblClkDim=0, DblClkDTEXT=0, 
-	DblClkMTEXT=0, ExitOnEnter=0, ExitOnCtrlEnter=0, FastYAlign=0;
+DWORD ExitOnEnter=0;
+DWORD ExitOnCtrlEnter = 0;
+DWORD FastYAlign = 0;
 TCHAR EditorFontName[LF_FACESIZE];
 DWORD EditorFontSize;
-//MTMeditorreactor * reac;
-
-//HMODULE CTEDialog::hRicheditLib = NULL;
 //-----------------------------------------------------------------------------
 HMENU MyLoadMenu(HINSTANCE hInst, LPCTSTR MenuName) {
 	LANGID langid = GetUserDefaultLangID();
@@ -83,86 +69,6 @@ HMENU MyLoadMenu(HINSTANCE hInst, LPCTSTR MenuName) {
 	HGLOBAL hglb = ::LoadResource(hInst, hrsrc);
 	LPVOID lpsz = ::LockResource(hglb);
 	return ::LoadMenuIndirect(lpsz);
-}
-//-----------------------------------------------------------------------------
-#if _ACADTARGET > 22
-bool DoubleClickFilter(MSG *pMsg) {
-#else
-BOOL DoubleClickFilter(MSG *pMsg) {
-#endif
-	// Process only if DBLCLK message in drawing area
-	if (pMsg->message != WM_LBUTTONDBLCLK) return false;
-	if (!DoubleClick) return false;
-	if (acedGetAcadDwgView()->m_hWnd != pMsg->hwnd) return false;
-	bool res = false;
-	acedDwgPoint dcsPt,ucsPt;  CPoint winPt(LOWORD(pMsg->lParam), HIWORD(pMsg->lParam));
-	// Translate cursor coords into DCS
-	acedCoordFromPixelToWorld(winPt, dcsPt);
-	struct resbuf dcs, ucs;
-	dcs.restype = RTSHORT; dcs.resval.rint = 2; // DCS
-	ucs.restype = RTSHORT; ucs.resval.rint = 1; // UCS
-	// Trabslate cursor coords into UCS for acedSSGet
-	acedTrans(dcsPt, &dcs, &ucs, FALSE, ucsPt);
-	ads_name ss,en;
-	
-#ifdef _BRX
-	pResbuf pset;
-	ads_name unused;
-	acedSSGetFirst(NULL, &pset);
-	if (pset) {
-		ss[0] = pset->resval.rlname[0];
-		ss[1] = pset->resval.rlname[1];
-		//acedSSSetFirst(ss, unused);
-		long len;
-		acedSSLength(ss, &len);
-		if (acDocManager->lockDocument(curDoc(),AcAp::kRead) == Acad::eOk) {
-			for (long i=0;i<len;i++) {
-				acedSSName(ss, i, en);
-				AcDbEntity * pEnt;
-				AcDbObjectId eid;
-				if ((acdbGetObjectId(eid,en) == Acad::eOk) &&
-					(acdbOpenAcDbEntity(pEnt, eid, AcDb::kForRead) == Acad::eOk))
-				{
-					if ((DblClkDTEXT && pEnt->isKindOf(AcDbText::desc()))||
-						(DblClkMTEXT && pEnt->isKindOf(AcDbMText::desc())) ||
-						(DblClkDim && pEnt->isKindOf(AcDbDimension::desc()))) 
-					{
-						res = TRUE;
-						acDocManager->sendStringToExecute(curDoc(),_T("TE\n"),false,false,false);
-					}
-					pEnt->close();
-					if (res) break;
-				}
-			}
-			acDocManager->unlockDocument(curDoc());
-		}
-		acedSSFree(ss);
-		acutRelRb(pset);
-	}
-#endif
-	// Find entity under cursor:
-	if (acedSSGet(_T(":E"), ucsPt, NULL, NULL, ss) == RTNORM) 
-	{
-		if (acDocManager->lockDocument(curDoc(),AcAp::kRead) == Acad::eOk) 
-		{
-			AcDbObjectId eid; acedSSName(ss,0L,en);
-			AcDbEntity * pEnt;
-			if ((acdbGetObjectId(eid,en) == Acad::eOk) &&
-				(acdbOpenAcDbEntity(pEnt, eid, AcDb::kForRead) == Acad::eOk))
-			{
-				if ((DblClkDTEXT && pEnt->isKindOf(AcDbText::desc()))||
-					(DblClkMTEXT && pEnt->isKindOf(AcDbMText::desc())) ||
-					(DblClkDim && pEnt->isKindOf(AcDbDimension::desc()))) 
-				{
-					res = true;
-					acDocManager->sendStringToExecute(curDoc(),_T("TE\n"),false,false,false);
-				}
-				pEnt->close();
-			}
-			acDocManager->unlockDocument(curDoc());
-		}
-	}
-	return res;
 }
 //-----------------------------------------------------------------------------
 BOOL FilterWinMsg(MSG* Amsg)
@@ -218,10 +124,6 @@ void CTEDialog::UpdateRegistry()
     HKEY prodKey;
 	if (CreateKey(HKEY_CURRENT_USER, pAppInfoLocFull, prodKey) != ERROR_SUCCESS)
 		return;
-	QueryRegDWORD(prodKey, sDoubleClickEdit, (DWORD&)DoubleClick);
-	QueryRegDWORD(prodKey, sDblClkEditDim, (DWORD&)DblClkDim);
-	QueryRegDWORD(prodKey, sDblClkEditDTEXT, (DWORD&)DblClkDTEXT);
-	QueryRegDWORD(prodKey, sDblClkEditMTEXT, (DWORD&)DblClkMTEXT);
 	QueryRegDWORD(prodKey, sExitOnEnter, (DWORD&)ExitOnEnter);
 	QueryRegDWORD(prodKey, sExitOnCtrlEnter, (DWORD&)ExitOnCtrlEnter);
 	QueryRegDWORD(prodKey, sFastYAlign, (DWORD&)FastYAlign);
@@ -397,8 +299,6 @@ void CTEDialog::DoDataExchange (CDataExchange *pDX) {
 	DDX_Control(pDX, IDCANCEL, btCancel);
 	DDX_Control(pDX, IDC_STYLE, cbStyle);
 	DDX_CustomDouble(pDX, IDC_HEIGHT, TextHeight);
-	//DDX_Control(pDX, IDC_LINESPACE, edLineSpace);
-	//DDX_Control(pDX, IDC_WIDTH, edWidth);
 	DDX_CustomDouble(pDX, IDC_LINESPACE, LineSpace);
 	DDX_CustomDouble(pDX, IDC_WIDTH, WidthFactor);
 	DDX_Control(pDX, IDC_ALIGNX, btAlignX);
@@ -406,13 +306,7 @@ void CTEDialog::DoDataExchange (CDataExchange *pDX) {
 	DDX_Control(pDX, IDC_STATUSBAR, stBar);
 }
 //-----------------------------------------------------------------------------
-//----- Needed for modeless dialogs to keep focus.
-//----- Return FALSE to not keep the focus, return TRUE to keep the focus
-LRESULT CTEDialog::OnAcadKeepFocus (WPARAM, LPARAM) {
-	return (TRUE) ;
-}
-//-----------------------------------------------------------------------------
-LRESULT CTEDialog::OnIdle (WPARAM, LPARAM) {
+LRESULT CTEDialog::OnKickIdle (WPARAM, LPARAM) {
 	if (!bNeedUpdStbar) return false;
 	bNeedUpdStbar = false;
 	UINT txt = 0;
@@ -453,7 +347,6 @@ void CTEDialog::SetFont(LPTSTR FontName, int FontSize)
 	::SendMessage(hwndEdit, EM_SETCHARFORMAT, 0, LPARAM(&chf));
 }
 //-----------------------------------------------------------------------------
-//LRESULT CTEDialog::OnSetCursor (WPARAM wParam, LPARAM lParam) {
 BOOL CTEDialog::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message) {
 	if (ControlOnIdle != pWnd->GetSafeHwnd())
 	{
@@ -500,7 +393,6 @@ void CTEDialog::SetInsPoint(AcDbObjectId EntId,AcGePoint3d inspoint)
 	hormode=pEnt->horizontalMode();
 	vertmode=pEnt->verticalMode();
 	pEnt->close();
-	//AcAxDocLock lock(acdbCurDwg());
 	AOK(acdbOpenAcDbEntity((AcDbEntity*&)pEnt,EntId, AcDb::kForWrite));
 	if ((vertmode==kTextBase)&&((hormode==kTextLeft)||(hormode==kTextAlign)||(hormode==kTextFit)))
 		pEnt->setPosition(inspoint);
@@ -633,7 +525,6 @@ bool CTEDialog::ParseSset() {
 		SortDText();
 	}
 	return true;
-
 }
 //-----------------------------------------------------------------------------
 void CTEDialog::UpdateStatus(){
@@ -642,10 +533,6 @@ void CTEDialog::UpdateStatus(){
 	int r = rect.right;
 	int widths[4] = { r-190,r-140, r-90, r };  
 	stBar.SetParts(4,widths);
-	//SendMessage(hwndStatus,WM_SIZE,SIZE_RESTORED,0);
-	TCHAR * dblclkstatustext;
-	dblclkstatustext=(DoubleClick==0 ? _T(""):_T("DBLCLK"));
-	stBar.SetText(dblclkstatustext, 1,0);
 	stBar.SetText(texttypenames[texttype], 2,0);
 }
 //-----------------------------------------------------------------------------
@@ -734,25 +621,12 @@ void CTEDialog::SetTextStyle(int index, CString& s)
 void CTEDialog::UpdateMenuItems() {
 	int IsCheck  = MF_UNCHECKED;
 	CMenu * mnu = GetMenu();
-//	CMenu * mnu = CMenu::FromHandle(::MyLoadMenu(_hdllInstance, MAKEINTRESOURCE(MENU1)));
-//	SetMenu(mnu);
-	mnu->CheckMenuItem(ID_DOUBLECLICK, MF_BYCOMMAND | (DoubleClick ? MF_CHECKED : MF_UNCHECKED)); 
-	mnu->CheckMenuItem(ID_DBLCLKDIM, MF_BYCOMMAND | (DblClkDim ? MF_CHECKED : MF_UNCHECKED)); 
-	mnu->CheckMenuItem(ID_DBLCLKDTEXT, MF_BYCOMMAND | (DblClkDTEXT ? MF_CHECKED : MF_UNCHECKED)); 
-	mnu->CheckMenuItem(ID_DBLCLKMTEXT, MF_BYCOMMAND | (DblClkMTEXT ? MF_CHECKED : MF_UNCHECKED)); 
 	mnu->CheckMenuItem(ID_OPTIONS_EXITONENTER, MF_BYCOMMAND | 
 		(ExitOnEnter ? MF_CHECKED : MF_UNCHECKED)); 
 	mnu->CheckMenuItem(ID_OPTIONS_EXITONCTRLENTER, MF_BYCOMMAND | 
 		(ExitOnCtrlEnter ? MF_CHECKED : MF_UNCHECKED)); 
 	mnu->CheckMenuItem(ID_OPTIONS_FASTYALIGN, MF_BYCOMMAND | 
 		(FastYAlign ? MF_CHECKED : MF_UNCHECKED)); 
-	
-	if (!DoubleClick)
-		IsCheck = MF_BYCOMMAND | MF_GRAYED;
-//		IsCheck = MF_BYCOMMAND | (DoubleClick ? MF_ENABLED : MF_GRAYED);
-	mnu->EnableMenuItem(ID_DBLCLKDIM, IsCheck);	
-	mnu->EnableMenuItem(ID_DBLCLKDTEXT, IsCheck);	
-	mnu->EnableMenuItem(ID_DBLCLKMTEXT, IsCheck);	
 	
 	if (texttype != DTEXT)
 	{
@@ -977,16 +851,6 @@ void CTEDialog::ShowCarPos() {
 	CString s;
 	s.Format(CMsg(IDS_CURSORPOS),edEndLn+1,edCol+1); 
 	stBar.SetText(s, 3, 0);
-	if (texttype==DTEXT) 
-	{
-//		ShowTextParams(edStartLn, edEndLn);
-//		if (edStartLn==edEndLn) 
-//		{
-//			AOK(acdbOpenAcDbEntity(pEnt,TextArray->at(edEndLn), AcDb::kForRead));
-//			drawcaret((AcDbText*)pEnt, edEndLn, edCol);
-//			pEnt->close();
-//		} 
-	}
 }
 //-----------------------------------------------------------------------------
 int CTEDialog::GetDlgItemFloat(int Item, double &AValue)
@@ -1010,16 +874,6 @@ void CTEDialog::SetDlgItemFloat(int Item, double AValue)
 void CTEDialog::OnClose()
 {
 	EndDialog(FALSE);
-/*	if (_brx) {
-		//acDocManager->sendStringToExecute(curDoc(),_T("\x1B\x1B"),false,false,false);
-		EndDialog(FALSE);
-	}
-	else {
-		dlg->ShowWindow(SW_HIDE);
-		::SetFocus(adsw_acadDocWnd());
-		acDocManager->sendModelessInterrupt(curDoc());
-	}
-*/
 }
 //-----------------------------------------------------------------------------
 void CTEDialog::OnAlignX()
@@ -1110,7 +964,6 @@ void CTEDialog::OnEnChangeHeight()
 		while (startline<=edEndLn) setDTEXTHeight(startline++,textheight);
 	} else if ((texttype==MTEXT) || (texttype==DIMENSION)) {
 		AcDbEntity * pEnt;
-//		AOK(acdbOpenAcDbEntity((AcDbEntity*&)pEnt,EntId, AcDb::kForWrite));
 		AOK(acdbOpenAcDbEntity(pEnt,EntId, AcDb::kForWrite));
 		SetEntHeight(pEnt, textheight); 
 		pEnt->close();
@@ -1122,7 +975,6 @@ void CTEDialog::OnEnChangeHeight()
 Acad::ErrorStatus CTEDialog::setMTextLSpace(double& lspace)
 {
 	AcDbEntity * pEnt;
-	//AcAxDocLock lock(acdbCurDwg());
 	AOK(acdbOpenAcDbEntity(pEnt,EntId, AcDb::kForWrite));
 	Acad::ErrorStatus res = ((AcDbMText*)pEnt)->setLineSpacingFactor(LineSpace);
 	pEnt->close();
@@ -1245,7 +1097,6 @@ LRESULT CTEDialog::OnFindReplaceMessage(WPARAM wParam, LPARAM lParam)
 bool CTEDialog::TryFoundMore(FINDREPLACE &fr)
 {
 	FINDTEXT fntext;
-//	FINDTEXTEX fntext;
 	fntext.lpstrText = fr.lpstrFindWhat;
 	GetSelParams();
 	fntext.chrg.cpMax = -1;
@@ -1254,11 +1105,9 @@ bool CTEDialog::TryFoundMore(FINDREPLACE &fr)
 	else 
 		fntext.chrg.cpMin = edSelStart;
 	LRESULT FindPos = ::SendMessage(hwndEdit, EM_FINDTEXT, fr.Flags, (LPARAM)&fntext);
-//	long FindPos = edEdit.FindText(fr.Flags, &fntext);
 	if (-1 != FindPos)
 	{
 		::SendMessage(hwndEdit, EM_SETSEL, FindPos, FindPos+wcslen(fr.lpstrFindWhat));
-		//edEdit.SetSel(fntext.chrgText);
 		return true;
 	}
 	return false;
@@ -1338,30 +1187,6 @@ void CTEDialog::OnFont()
 	}
 }
 //-----------------------------------------------------------------------------
-void CTEDialog::OnDoubleclick()
-{
-	SwitchItem(DoubleClick, sDoubleClickEdit);
-/*	if (DoubleClick==0) {
-		if (MTMeditorreactor::reac) 
-			delete MTMeditorreactor::reac;
-	} else if (!MTMeditorreactor::reac) 
-		MTMeditorreactor::reac = new MTMeditorreactor(true); 
-*/
-	UpdateStatus();
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::OnDblDTEXT() {
-	SwitchItem(DblClkDTEXT, sDblClkEditDTEXT);
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::OnDblMTEXT() {
-	SwitchItem(DblClkMTEXT, sDblClkEditMTEXT);
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::OnDblDIM() {
-	SwitchItem(DblClkDim, sDblClkEditDim);
-}
-//-----------------------------------------------------------------------------
 void CTEDialog::OnOptionExitOnEnter() {
 	SwitchItem(ExitOnEnter, sExitOnEnter);
 }
@@ -1391,7 +1216,6 @@ BOOL CTEDialog::PreTranslateMessage(MSG* pMsg)
 		if ((pMsg->message == WM_KEYDOWN) && (pMsg->wParam == VK_RETURN))
 			if (ExitOnEnter || (ExitOnCtrlEnter && (::GetKeyState(VK_CONTROL) < 0))) {
 				OnClose();
-				//::PostMessage(hwndDialog, WM_CLOSE, 0, 0);
 				return TRUE;
 			}
 	}

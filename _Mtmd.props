@@ -19,6 +19,7 @@
     <PlatformToolset Condition="'$(Configuration)'=='arx2015'">v110</PlatformToolset>
     <PlatformToolset Condition="'$(Configuration)'=='arx2018'">v140</PlatformToolset>
     <PlatformToolset Condition="'$(Configuration)'=='arx2019'">v141</PlatformToolset>
+    <PlatformToolset Condition="'$(Configuration)'=='arx2020'">v141</PlatformToolset>
     <PlatformToolset Condition="'$(Configuration)'=='brx13'">v100</PlatformToolset>
     <PlatformToolset Condition="'$(Configuration)'=='brx14'">v100</PlatformToolset>
     <PlatformToolset Condition="'$(Configuration)'=='brx15'">v100</PlatformToolset>

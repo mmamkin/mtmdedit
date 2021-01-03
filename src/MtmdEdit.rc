@@ -27,7 +27,6 @@ LANGUAGE LANG_NEUTRAL, SUBLANG_DEFAULT
 IDR_ACCEL ACCELERATORS
 BEGIN
     "F",            ID_FIND,                VIRTKEY, CONTROL, NOINVERT
-    "K",            ID_DOUBLECLICK,         VIRTKEY, CONTROL, NOINVERT
     "L",            ID_LOWERCASE,           VIRTKEY, CONTROL, NOINVERT
     "Q",            ID_ALIGNX,              VIRTKEY, CONTROL, NOINVERT
     "R",            ID_REPLACE,             VIRTKEY, CONTROL, NOINVERT
@@ -72,7 +71,7 @@ END
 
 EDITDLG DIALOGEX 0, 0, 361, 160
 STYLE DS_SETFONT | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
-CAPTION "MtmdEdit 3.4beta"
+CAPTION "MtmdEdit 3.5"
 FONT 8, "MS Sans Serif", 0, 0, 0x1
 BEGIN
     CONTROL         "",IDC_EDIT,"RichEdit20W",ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_NOHIDESEL | ES_WANTRETURN | WS_VSCROLL | WS_HSCROLL | WS_TABSTOP,1,17,359,126,WS_EX_CLIENTEDGE | 0x10000000L
@@ -149,11 +148,6 @@ BEGIN
     POPUP "&Настройки"
     BEGIN
         MENUITEM "Шрифт...",                    ID_FONT
-        MENUITEM "Двойной клик\tCtrl+K",        ID_DOUBLECLICK
-        MENUITEM "Двойной клик на Размер",      ID_DBLCLKDIM
-        MENUITEM "Двойной клик на DT&EXT",      ID_DBLCLKDTEXT
-        MENUITEM "Двойной клик на M&TEXT",      ID_DBLCLKMTEXT
-        MENUITEM SEPARATOR
         MENUITEM "Выход по Enter",              ID_OPTIONS_EXITONENTER
         MENUITEM "Выход по Ctrl+Enter",         ID_OPTIONS_EXITONCTRLENTER
         MENUITEM "Быстрое выравнивание по Y",   ID_OPTIONS_FASTYALIGN
@@ -191,7 +185,7 @@ BEGIN
     IDS_EDITPROMPT          "\nРедактируйте текст или [X - выход]: "
     IDS_KWORDEXIT           "eXit"
     IDS_ALLOWEDENT          "\nРазрешены только объекты ТЕКСТ, МТЕКСТ и РАЗМЕР"
-    IDS_ABOUT               "MtmdEdit v.3.4beta\nдля AutoCAD 2019\nCopyright © 2020 Мансур Мамкин\n\nЕ-мейл: mailto:mmamkin@mail.ru\n\nДомашняя страничка http://mtmlab.ru"
+    IDS_ABOUT               "MtmdEdit v.3.5\nдля AutoCAD\nCopyright © 2003-2021 Мансур Мамкин\n\nЕ-мейл: mailto:mmamkin@mail.ru\n\nДомашняя страничка http://www.mtmlab.ru"
     IDS_TEXTSTYLE           "Стиль текста"
     IDS_TEXTHEIGHT          "Высота текста"
     IDS_LINESPACE           "Межстрочное расстояние"
@@ -253,11 +247,6 @@ BEGIN
     POPUP "Option&s"
     BEGIN
         MENUITEM "&Font...",                    ID_FONT
-        MENUITEM "&DoubleClick\tCtrl+K",        ID_DOUBLECLICK
-        MENUITEM "DblClick on Di&m",            ID_DBLCLKDIM
-        MENUITEM "DblClick on DT&EXT",          ID_DBLCLKDTEXT
-        MENUITEM "DblClick on M&TEXT",          ID_DBLCLKMTEXT
-        MENUITEM SEPARATOR
         MENUITEM "Exit on Enter",               ID_OPTIONS_EXITONENTER
         MENUITEM "Exit on Ctrl+Enter",          ID_OPTIONS_EXITONCTRLENTER
         MENUITEM "Fast Y align",                ID_OPTIONS_FASTYALIGN
@@ -300,7 +289,7 @@ BEGIN
     IDS_EDITPROMPT          "\nEdit text or [eXit]: "
     IDS_KWORDEXIT           "eXit"
     IDS_ALLOWEDENT          "\nOnly DTEXT, MTEXT and DIMENSION entities allowed"
-    IDS_ABOUT               "MtmdEdit v.3.4beta\nfor AutoCAD 2019\nCopyright © 2019 Mansur Mamkin\n\nmailto:mmamkin@mail.ru\n\nCheck http://mtmlab.ru for updates"
+    IDS_ABOUT               "MtmdEdit v.3.5\nfor AutoCAD\nCopyright © 2003-2021 Mansur Mamkin\n\nmailto:mmamkin@mail.ru\n\nCheck http://www.mtmlab.ru for updates"
     IDS_TEXTSTYLE           "Text style"
     IDS_TEXTHEIGHT          "Text height"
     IDS_LINESPACE           "Line space"

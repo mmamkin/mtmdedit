@@ -30,14 +30,7 @@
 #include "afxcmn.h"
 
 typedef enum TETextType { UNKNOWN, DTEXT, MTEXT, DIMENSION } TETextType;
-//const TCHAR* texttypenames[];
-extern DWORD DoubleClick,DoubleClickbegin, DblClkDim, DblClkDTEXT, 
-	DblClkMTEXT, ExitOnEnter, ExitOnCtrlEnter, FastYAlign;
-#if _ACADTARGET > 22
-extern bool DoubleClickFilter(MSG *pMsg);
-#else
-extern BOOL DoubleClickFilter(MSG *pMsg);
-#endif
+extern DWORD ExitOnEnter, ExitOnCtrlEnter, FastYAlign;
 //-----------------------------------------------------------------------------
 class CMsg : public CString {
 private:
@@ -83,11 +76,8 @@ class CTEDialog : public CAcUiDialog {
 protected:
 	virtual void DoDataExchange (CDataExchange *pDX) ;
     //{{AFX_MSG(CTEDialog)
-	afx_msg LRESULT OnAcadKeepFocus (WPARAM, LPARAM) ;
-	//afx_msg LRESULT OnIdle (WPARAM, LPARAM) ;
-	afx_msg void OnKickIdle();
+	afx_msg LRESULT OnKickIdle(WPARAM, LPARAM);
 	afx_msg LRESULT OnTESelChange (WPARAM, LPARAM) ;
-	//afx_msg LRESULT OnSetCursor (WPARAM, LPARAM) ;
 	afx_msg BOOL OnSetCursor(CWnd*, UINT, UINT);
 	afx_msg LRESULT OnContextMenu(WPARAM, LPARAM);
 	afx_msg void OnClose();
@@ -107,10 +97,6 @@ protected:
 	afx_msg void OnAbout();
 	afx_msg void OnEditMenuItems(UINT nID);
 	afx_msg void OnFont();
-	afx_msg void OnDoubleclick();
-	afx_msg void OnDblDTEXT();
-	afx_msg void OnDblMTEXT();
-	afx_msg void OnDblDIM();
 	afx_msg void OnOptionExitOnEnter();
 	afx_msg void OnOptionExitOnCtrlEnter();
 	afx_msg void OnOptionFastYAlign();
@@ -119,8 +105,6 @@ protected:
     //}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 public:
-	//static BOOL inUse;
-//	static HMODULE hRicheditLib;
 	static CTEDialog *dlg;
 	static UINT FindReplaceDialogMessage;
 	static CFindReplaceDialog *pFindDlg;
@@ -133,8 +117,6 @@ public:
 	long edCol;
 
 	bool useevent, bNeedUpdStbar, textchanged;
-	//bool isSearchNext;
-	//int LastFindOper;
 	HACCEL accel;
 	HWND ControlOnIdle;
 	HWND hwndDialog, hwndEdit, hwndStyle, hwndHeight, hwndWidth, hwndLineSpace, hwndAlignX, hwndAlignY;
@@ -180,9 +162,6 @@ public:
 	CRichEditCtrl edEdit;
 	CButton btCancel;
 	CComboBox cbStyle;
-	//CEdit edHeight;
-	//CEdit edLineSpace;
-	//CEdit edWidth;
 	CButton btAlignX;
 	CButton btAlignY;
 	CStatusBarCtrl stBar;

@@ -33,7 +33,6 @@ MtmdEdit was rewritten to use MFC framework
 - Change style, height (in case of DTEXT you can change separately each DTEXT object or selected lines)
 - Make selection UPPERCASE(Ctrl+U) or lowercase(Ctrl+L)
 - Unlike standard editor, you can edit control codes and field codes
-- Double click event supported (press Ctrl+K in MtmdEdit window to switch double click activation)
 
 ###Terms of Use
 
@@ -46,9 +45,7 @@ part of a commercial release without our express written consent.
 
 ###Using MtmdEdit
 
-Enter command "TE" or simply double click text object.
-
-Note: to switch (on/off) double click activation, press Ctrl+K in MtmdEdit. 
+Enter command "TE".
 
 If even one DTEXT object is in selection, MtmdEdit will start in DTEXT mode.
 

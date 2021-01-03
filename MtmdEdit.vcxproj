@@ -45,6 +45,15 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
 
+    <ProjectConfiguration Include="arx2020|Win32">
+      <Configuration>arx2020</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="arx2020|x64">
+      <Configuration>arx2020</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+
     <ProjectConfiguration Include="brx13|Win32">
       <Configuration>brx13</Configuration>
       <Platform>Win32</Platform>
@@ -128,15 +137,12 @@
     <ClCompile Include="src\DocData.cpp" />
     <ClCompile Include="src\MtmdEdit.cpp" />
     <ClCompile Include="src\TEDialog.cpp" />
-    <ClCompile Include="src\rEditorReactor.cpp" />
     <ClCompile Include="src\StdAfx.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\DocData.h" />
-    <ClInclude Include="src\MDITabs.h" />
-    <ClInclude Include="src\rEditorReactor.h" />
     <ClInclude Include="src\Resource.h" />
     <ClInclude Include="src\StdAfx.h" />
   </ItemGroup>

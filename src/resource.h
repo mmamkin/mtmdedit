@@ -30,9 +30,6 @@
 #define IDR_ACCEL                       209
 #define MENU1                           210
 #define ABOUTDLG                        211
-#define ID_DBLCLKDIM                    212
-#define ID_DBLCLKMTEXT                  213
-#define ID_DBLCLKDTEXT                  214
 #define IDC_TEXT                        215
 #define IDC_WIDTH                       216
 #define IDC_STATUSBAR                   217
@@ -45,7 +42,6 @@
 #define ID_SELECTALL                    32773
 #define ID_FIND                         32774
 #define ID_REPLACE                      32775
-#define ID_DOUBLECLICK                  32780
 #define ID_UPPERCASE                    32781
 #define ID_LOWERCASE                    32782
 #define ID_ALIGNX                       32783

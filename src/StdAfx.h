@@ -107,8 +107,6 @@
 #include "arxHeaders.h"
 #include "resource.h"
 #include "TEDialog.h"
-//#include "rEditorReactor.h"
-
 //-----------------------------------------------------------------------------
 #include "DocData.h" //- Your document specific data class holder
 

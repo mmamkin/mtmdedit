@@ -36,16 +36,11 @@ public:
 		AcRx::AppRetCode retCode =AcRxArxApp::On_kInitAppMsg (pkt);
 		//CTEDialog::hRicheditLib = LoadLibrary(_T("riched20.dll"));
 		CTEDialog::UpdateRegistry();
-		acedRegisterFilterWinMsg(DoubleClickFilter);
-		//if (DoubleClick!=0) MTMeditorreactor::reac = new MTMeditorreactor(true);
 		return (retCode);
 	}
 
 	virtual AcRx::AppRetCode On_kUnloadAppMsg (void *pkt) {
 		AcRx::AppRetCode retCode =AcRxArxApp::On_kUnloadAppMsg (pkt);
-		acedRemoveFilterWinMsg(DoubleClickFilter);
-		//if (DoubleClick && MTMeditorreactor::reac) 
-		//	delete MTMeditorreactor::reac;
 		//FreeLibrary(CTEDialog::hRicheditLib);
 		return (retCode) ;
 	}

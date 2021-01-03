@@ -20,7 +20,7 @@
 //
 
 //-----------------------------------------------------------------------------
-//- MtmdEdit2008.cpp : Initialization functions
+//- MtmdEdit.cpp : Initialization functions
 //-----------------------------------------------------------------------------
 #include "StdAfx.h"
 #include "resource.h"

@@ -45,6 +45,15 @@
     <ARXInclude>$(ARX2019)inc;$(ARX2019)inc-$(Platform)</ARXInclude>
     <ARXLibs>$(ARX2019)Lib-$(Platform)</ARXLibs>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='arx2020'" Label="Configuration">
+    <TargetName Condition="'$(Platform)'=='Win32'">$(ProjectName)2020x32</TargetName>
+    <TargetName Condition="'$(Platform)'=='x64'">$(ProjectName)2020x64</TargetName>
+    <MtmdPreprocessorDefinitions Condition="'$(Platform)'=='Win32'">WIN32;_WINDOWS;_AFXEXT;_AFXDLL;ACRXAPP;_ACADTARGET=23</MtmdPreprocessorDefinitions>
+    <MtmdPreprocessorDefinitions Condition="'$(Platform)'=='x64'">WIN64;_WINDOWS;_AFXEXT;_AFXDLL;ACRXAPP;_ACADTARGET=23</MtmdPreprocessorDefinitions>
+    <TargetExt>.arx</TargetExt>
+    <ARXInclude>$(ARX2019)inc;$(ARX2019)inc-$(Platform)</ARXInclude>
+    <ARXLibs>$(ARX2019)Lib-$(Platform)</ARXLibs>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)'=='brx13'" Label="Configuration">
     <TargetName Condition="'$(Platform)'=='Win32'">$(ProjectName).13</TargetName>
     <TargetName Condition="'$(Platform)'=='x64'">$(ProjectName).13.x64</TargetName>
