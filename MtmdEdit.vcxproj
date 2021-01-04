@@ -54,6 +54,11 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
 
+    <ProjectConfiguration Include="arx2021|x64">
+      <Configuration>arx2021</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+
     <ProjectConfiguration Include="brx13|Win32">
       <Configuration>brx13</Configuration>
       <Platform>Win32</Platform>

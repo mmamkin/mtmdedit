@@ -1,6 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Label="Globals">
+    <ARX2021>C:\SDK\ARX2021\</ARX2021>
     <ARX2019>C:\SDK\ARX2019\</ARX2019>
     <ARX2018>C:\SDK\ARX2018\</ARX2018>
     <ARX2015>E:\SDK\ARX2015\</ARX2015>
@@ -20,6 +21,7 @@
     <PlatformToolset Condition="'$(Configuration)'=='arx2018'">v140</PlatformToolset>
     <PlatformToolset Condition="'$(Configuration)'=='arx2019'">v141</PlatformToolset>
     <PlatformToolset Condition="'$(Configuration)'=='arx2020'">v141</PlatformToolset>
+    <PlatformToolset Condition="'$(Configuration)'=='arx2021'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(Configuration)'=='brx13'">v100</PlatformToolset>
     <PlatformToolset Condition="'$(Configuration)'=='brx14'">v100</PlatformToolset>
     <PlatformToolset Condition="'$(Configuration)'=='brx15'">v100</PlatformToolset>
