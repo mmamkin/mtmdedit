@@ -63,6 +63,9 @@
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(ObjectArxDir)lib-x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <!-- arxHeaders.h links the UI libraries via #pragma comment, but not the
+           core ones (AcString's destructor needs acHeapFree from rxapi.lib). -->
+      <AdditionalDependencies>rxapi.lib;acdb26.lib;acge26.lib;ac1st26.lib;AcPal.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <EnableUAC>false</EnableUAC>
       <TargetMachine>MachineX64</TargetMachine>

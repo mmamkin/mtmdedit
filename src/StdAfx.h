@@ -65,7 +65,6 @@
 #include <afxdlgs.h>
 #include <afxpriv.h>          //- WM_KICKIDLE
 #include <atlbase.h>
-#include <windowsx.h>
 #include <richedit.h>
 
 #include "arxHeaders.h"

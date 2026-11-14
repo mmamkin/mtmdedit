@@ -450,9 +450,9 @@ CString CTEDialog::GetEditorLine(int i)
 	CString s;
 	//- EM_GETLINE stores the buffer size in the first WORD of the buffer, so
 	//- it needs room for at least 2 characters even for empty lines.
-	const int bufLen = std::max(len, 2) + 1;
+	const int bufLen = (std::max)(len, 2) + 1;
 	const int got = m_edit.GetLine(i, s.GetBuffer(bufLen), bufLen);
-	s.ReleaseBufferSetLength(std::min(got, len));
+	s.ReleaseBufferSetLength((std::min)(got, len));
 	return s;
 }
 
@@ -687,7 +687,7 @@ void CTEDialog::PushTextToDb()
 
 	const int lineCount = m_edit.GetLineCount();
 	const int dtextCount = m_dtexts.length();
-	for (int i = 0; i < std::min(dtextCount, lineCount); i++) {
+	for (int i = 0; i < (std::min)(dtextCount, lineCount); i++) {
 		{
 			AcDbObjectPointer<AcDbText> pText(m_dtexts[i], AcDb::kForWrite);
 			if (pText.openStatus() != Acad::eOk)
@@ -758,7 +758,7 @@ void CTEDialog::ShowTextParams()
 {
 	if (!IsDText())
 		return;
-	const long last = std::min<long>(m_endLn, m_dtexts.length() - 1);
+	const long last = (std::min<long>)(m_endLn, m_dtexts.length() - 1);
 	if (m_startLn > last)
 		return;
 
@@ -1098,7 +1098,8 @@ LRESULT CTEDialog::OnContextMenu(WPARAM, LPARAM lParam)
 	CMenu *pPopup = pMenu ? pMenu->GetSubMenu(0) : nullptr;
 	if (!pPopup)
 		return 0;
-	CPoint pt(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+	//- Signed: coordinates can be negative on multi-monitor setups
+	CPoint pt(static_cast<short>(LOWORD(lParam)), static_cast<short>(HIWORD(lParam)));
 	//- Shift+F10 and the menu key send (-1, -1): open the menu at the caret
 	if (lParam == -1) {
 		pt = m_edit.GetCaretPos();
