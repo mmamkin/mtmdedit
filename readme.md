@@ -7,7 +7,7 @@ v4.0 - 2026/11/14
 
 * Ported to AutoCAD 2027 (ObjectARX 2027, Visual Studio 2026 / v145, C++20, x64)
 * Dropped build configurations for AutoCAD 2012-2021 and BricsCAD (their toolsets are no longer available)
-* Added an autoloader bundle (MtmdEdit.bundle) with install/uninstall scripts
+* Added MtmdEdit-Setup.exe: installs the VC++ runtime prerequisite and the autoloader bundle, uninstalls from Windows settings, silent mode /q
 * No more AutoCAD crash on a failed entity open; errors are skipped instead
 * New DTEXT lines are copied with deepCloneObjects, so fields and annotative scales are no longer shared with the source line
 * Fixed: line space was undefined when a single DTEXT was edited
@@ -61,9 +61,23 @@ You may distribute this program freely in its original unaltered
 form. However, you may not distribute this program with or as
 part of a commercial release without our express written consent.
 
-###Building and installing (AutoCAD 2027)
+###Installing (AutoCAD 2027)
 
-Requirements:
+Run `MtmdEdit-Setup.exe`. It:
+
+- checks that AutoCAD 2027 is installed (MtmdEdit works in no other release),
+- installs the Microsoft Visual C++ 2015-2026 runtime (x64, incl. MFC) when
+  the computer has an older one; the installer carries it, nothing is downloaded,
+- installs the autoloader bundle to `%APPDATA%\Autodesk\ApplicationPlugins\MtmdEdit.bundle`
+  (per user, no administrator rights except for the runtime),
+- adds "MtmdEdit for AutoCAD 2027" to Windows "Installed apps" for uninstalling.
+
+Restart AutoCAD 2027 afterwards; the command is TE. `MtmdEdit-Setup.exe /q`
+installs silently (for deployment to many computers).
+
+###Building
+
+Requirements (developer machine only, not needed by users):
 
 - Visual Studio 2026 (or 2022 17.14) with "Desktop development with C++" and the
   "C++ MFC for latest build tools (x86 & x64)" component
@@ -73,12 +87,11 @@ Steps:
 
     set "OBJECTARX2027=C:\ObjectARX 2027"
     build.cmd
-    install.cmd
 
-`build.cmd` produces `Out\MtmdEdit2027.arx` and `Out\MtmdEdit.bundle`;
-`install.cmd` copies the bundle to `%APPDATA%\Autodesk\ApplicationPlugins`,
-where AutoCAD 2027 loads it automatically on start. To load it by hand instead,
-use APPLOAD with `Out\MtmdEdit2027.arx`. `uninstall.cmd` removes the bundle.
+`build.cmd` produces `Out\MtmdEdit2027.arx` and the installer `Out\MtmdEdit-Setup.exe`.
+The installer stub is compiled with the C# compiler that ships with Windows
+(.NET Framework 4.x), so no installer tool is needed. To test without
+installing, load `Out\MtmdEdit2027.arx` with APPLOAD.
 
 The .arx works only in AutoCAD 2027: AutoCAD 2027 is binary compatible with
 itself only, so every AutoCAD release needs its own build.

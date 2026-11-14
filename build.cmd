@@ -1,5 +1,5 @@
 @echo off
-rem Builds MtmdEdit2027.arx and assembles Out\MtmdEdit.bundle.
+rem Builds Out\MtmdEdit2027.arx and the installer Out\MtmdEdit-Setup.exe.
 rem Needs Visual Studio 2026 (or 2022 17.14) with "Desktop development with C++"
 rem incl. MFC, and the ObjectARX 2027 SDK pointed to by OBJECTARX2027.
 setlocal
@@ -20,10 +20,5 @@ if not defined MSBUILD (
 
 "%MSBUILD%" MtmdEdit.vcxproj /m /nologo /p:Configuration=Release /p:Platform=x64 || exit /b 1
 
-set "BUNDLE=Out\MtmdEdit.bundle"
-if exist "%BUNDLE%" rmdir /s /q "%BUNDLE%"
-mkdir "%BUNDLE%\Contents"
-copy /y bundle\PackageContents.xml "%BUNDLE%\" >nul || exit /b 1
-copy /y Out\MtmdEdit2027.arx "%BUNDLE%\Contents\" >nul || exit /b 1
-echo.
-echo Built %CD%\%BUNDLE%
+rem Single-file installer: plugin + autoloader bundle + VC++ runtime
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File installer\make-setup.ps1 -ArxPath Out\MtmdEdit2027.arx -OutDir Out || exit /b 1
