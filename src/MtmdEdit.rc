@@ -71,8 +71,8 @@ END
 
 EDITDLG DIALOGEX 0, 0, 361, 160
 STYLE DS_SETFONT | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
-CAPTION "MtmdEdit 3.5"
-FONT 8, "MS Sans Serif", 0, 0, 0x1
+CAPTION "MtmdEdit 4.0"
+FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
     CONTROL         "",IDC_EDIT,"RichEdit20W",ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_NOHIDESEL | ES_WANTRETURN | WS_VSCROLL | WS_HSCROLL | WS_TABSTOP,1,17,359,126,WS_EX_CLIENTEDGE | 0x10000000L
     PUSHBUTTON      "Ok",IDCANCEL,325,1,35,14
@@ -88,7 +88,7 @@ END
 ABOUTDLG DIALOG 0, 0, 214, 134
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
 CAPTION "About MtmdEdit"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     CONTROL         "",IDC_TEXT,"RichEdit20W",0x19c4,20,6,172,101,0x10000000L
     DEFPUSHBUTTON   "OK",IDCANCEL,81,113,50,14
@@ -185,7 +185,7 @@ BEGIN
     IDS_EDITPROMPT          "\nРедактируйте текст или [X - выход]: "
     IDS_KWORDEXIT           "eXit"
     IDS_ALLOWEDENT          "\nРазрешены только объекты ТЕКСТ, МТЕКСТ и РАЗМЕР"
-    IDS_ABOUT               "MtmdEdit v.3.5\nдля AutoCAD\nCopyright © 2003-2021 Мансур Мамкин\n\nЕ-мейл: mailto:mmamkin@mail.ru\n\nДомашняя страничка http://www.mtmlab.ru"
+    IDS_ABOUT               "MtmdEdit v.4.0\nдля AutoCAD\nCopyright © 2003-2021 Мансур Мамкин\n\nЕ-мейл: mailto:mmamkin@mail.ru\n\nДомашняя страничка http://www.mtmlab.ru"
     IDS_TEXTSTYLE           "Стиль текста"
     IDS_TEXTHEIGHT          "Высота текста"
     IDS_LINESPACE           "Межстрочное расстояние"
@@ -289,7 +289,7 @@ BEGIN
     IDS_EDITPROMPT          "\nEdit text or [eXit]: "
     IDS_KWORDEXIT           "eXit"
     IDS_ALLOWEDENT          "\nOnly DTEXT, MTEXT and DIMENSION entities allowed"
-    IDS_ABOUT               "MtmdEdit v.3.5\nfor AutoCAD\nCopyright © 2003-2021 Mansur Mamkin\n\nmailto:mmamkin@mail.ru\n\nCheck http://www.mtmlab.ru for updates"
+    IDS_ABOUT               "MtmdEdit v.4.0\nfor AutoCAD\nCopyright © 2003-2021 Mansur Mamkin\n\nmailto:mmamkin@mail.ru\n\nCheck http://www.mtmlab.ru for updates"
     IDS_TEXTSTYLE           "Text style"
     IDS_TEXTHEIGHT          "Text height"
     IDS_LINESPACE           "Line space"

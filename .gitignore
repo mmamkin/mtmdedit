@@ -1,7 +1,7 @@
 ipch/
 Out/
 Build/
-\.vs/
-\.vscode/
-MtmdEdit.vcxproj.user
+.vs/
+.vscode/
+*.vcxproj.user
 *.aps
