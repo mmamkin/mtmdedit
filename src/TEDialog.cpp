@@ -3,33 +3,228 @@
 //-----------------------------------------------------------------------------
 #include "StdAfx.h"
 #include "TEDialog.h"
+
+#include <algorithm>
+#include <iterator>
+#include <numeric>
+#include <vector>
+
+namespace {
+
+const LPCTSTR kTextTypeNames[] = { _T("UNKNOWN"), _T("DTEXT"), _T("MTEXT"), _T("DIM") };
+const LPCTSTR kRegKey = _T("Software\\Mtmlab\\MtmdEdit");
+//- A monospaced default makes control codes (\P, %%d, {\fArial;...}) easier
+//- to edit than the old "MS Sans Serif" default.
+const LPCTSTR kDefaultFontName = _T("Consolas");
+
+//- AutoCAD's TEXT command places the next line 5/3 of the text height below
+//- the previous one; used when only one DTEXT is selected and there is no
+//- second line to measure the spacing from.
+constexpr double kDefaultLineSpaceFactor = 5.0 / 3.0;
+
+//- Rich edit code page for UTF-16 text (EM_GETTEXTEX / EM_SETTEXTEX)
+constexpr UINT kCodePageUtf16 = 1200;
+
 //-----------------------------------------------------------------------------
-LPCTSTR texttypenames[]={_T("UNKNOWN"),_T("DTEXT"),_T("MTEXT"),_T("DIM")};
-LPCTSTR pAppInfoLocFull = _T("Software\\Mtmlab\\MtmdEdit");
-LPCTSTR AppName = _T("MTMDEDIT");
-LPCTSTR CommandName = _T("TE");
-LPCTSTR sFontSize = _T("FontSize");
-LPCTSTR sFontName = _T("FontName");
-LPCTSTR sDefFontName = _T("MS Sans Serif");
-LPCTSTR sExitOnEnter = _T("ExitOnEnter");
-LPCTSTR sExitOnCtrlEnter = _T("ExitOnCtrlEnter");
-LPCTSTR sFastYAlign = _T("FastYAlign");
+HMENU LoadLocalizedMenu(HINSTANCE hInst, LPCTSTR menuName)
+{
+	HRSRC hrsrc = ::FindResourceEx(hInst, RT_MENU, menuName, GetUserDefaultLangID());
+	if (!hrsrc)
+		hrsrc = ::FindResourceEx(hInst, RT_MENU, menuName, MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US));
+	if (!hrsrc)
+		return nullptr;
+	return ::LoadMenuIndirect(::LockResource(::LoadResource(hInst, hrsrc)));
+}
+
+//-----------------------------------------------------------------------------
+INT_PTR CALLBACK AboutDlgProc(HWND wnd, UINT message, WPARAM wparam, LPARAM lparam)
+{
+	switch (message) {
+	case WM_INITDIALOG: {
+		HWND hwndText = ::GetDlgItem(wnd, IDC_TEXT);
+		::SendMessage(hwndText, EM_SETBKGNDCOLOR, 0, GetSysColor(COLOR_BTNFACE));
+		const LRESULT evmask = ::SendMessage(hwndText, EM_GETEVENTMASK, 0, 0);
+		::SendMessage(hwndText, EM_SETEVENTMASK, 0, evmask | ENM_LINK);
+		::SendMessage(hwndText, EM_AUTOURLDETECT, TRUE, 0);
+		::SetDlgItemText(wnd, IDC_TEXT, LoadMsg(IDS_ABOUT));
+		return TRUE;
+	}
+	case WM_COMMAND:
+		//- The old code fell through into WM_NOTIFY here and read lparam as an ENLINK.
+		if (LOWORD(wparam) == IDCANCEL || LOWORD(wparam) == IDOK) {
+			::EndDialog(wnd, 0);
+			return TRUE;
+		}
+		break;
+	case WM_NOTIFY: {
+		auto *pLink = reinterpret_cast<ENLINK *>(lparam);
+		if (wparam == IDC_TEXT && pLink->nmhdr.code == EN_LINK && pLink->msg == WM_LBUTTONUP) {
+			CString url;
+			const LONG len = pLink->chrg.cpMax - pLink->chrg.cpMin;
+			TEXTRANGE rg { pLink->chrg, url.GetBuffer(len + 1) };
+			::SendMessage(pLink->nmhdr.hwndFrom, EM_GETTEXTRANGE, 0, reinterpret_cast<LPARAM>(&rg));
+			url.ReleaseBuffer();
+			::ShellExecute(wnd, _T("open"), url, nullptr, nullptr, SW_SHOWNORMAL);
+			return TRUE;
+		}
+		break;
+	}
+	}
+	return FALSE;
+}
+
+//-----------------------------------------------------------------------------
+void RefreshDisplay()
+{
+	actrTransactionManager->queueForGraphicsFlush();
+	actrTransactionManager->flushGraphics();
+	acedUpdateDisplay();
+}
+
+//-----------------------------------------------------------------------------
+//- Returns the editable text of a TEXT/MTEXT/DIMENSION. When the text holds a
+//- field, the raw field code is returned so the user can edit it.
+CString ReadEntityText(AcDbEntity *pEnt)
+{
+	AcString s;
+	if (pEnt->hasFields()) {
+		AcDbField *pField = nullptr;
+		if (pEnt->getField(_T("TEXT"), pField, AcDb::kForRead) == Acad::eOk && pField != nullptr) {
+			pField->getFieldCode(s, AcDbField::kAddMarkers);
+			pField->close();
+			return CString(s.kwszPtr());
+		}
+	}
+	if (auto *pText = AcDbText::cast(pEnt))
+		pText->textString(s);
+	else if (auto *pMText = AcDbMText::cast(pEnt))
+		pMText->contents(s);
+	else if (auto *pDim = AcDbDimension::cast(pEnt))
+		pDim->dimensionText(s);
+	return CString(s.kwszPtr());
+}
+
+//-----------------------------------------------------------------------------
+CString ReadEntityText(AcDbObjectId id)
+{
+	AcDbEntityPointer pEnt(id, AcDb::kForRead);
+	return pEnt.openStatus() == Acad::eOk ? ReadEntityText(pEnt.object()) : CString();
+}
+
+//-----------------------------------------------------------------------------
+AcDbObjectId FindTextStyle(const CString &name)
+{
+	AcDbObjectId id;
+	AcDbTextStyleTable *pTable = nullptr;
+	if (acdbHostApplicationServices()->workingDatabase()->getTextStyleTable(pTable, AcDb::kForRead) == Acad::eOk) {
+		pTable->getAt(name, id);
+		pTable->close();
+	}
+	return id;
+}
+
+//-----------------------------------------------------------------------------
+//- Copies a DTEXT next to the original. deepCloneObjects is used instead of
+//- clone(): clone() copies the extension dictionary id as is, so a source line
+//- with fields or annotative scales would share its dictionary with the copy.
+AcDbObjectId CloneDText(AcDbObjectId srcId)
+{
+	AcDbObjectId ownerId;
+	{
+		AcDbEntityPointer pSrc(srcId, AcDb::kForRead);
+		if (pSrc.openStatus() != Acad::eOk)
+			return AcDbObjectId::kNull;
+		ownerId = pSrc->ownerId();
+	}
+	AcDbObjectIdArray ids;
+	ids.append(srcId);
+	AcDbIdMapping idMap;
+	if (srcId.database()->deepCloneObjects(ids, ownerId, idMap) != Acad::eOk)
+		return AcDbObjectId::kNull;
+	AcDbIdPair pair(srcId, AcDbObjectId::kNull, true);
+	if (!idMap.compute(pair) || !pair.isCloned())
+		return AcDbObjectId::kNull;
+	return pair.value();
+}
+
+//-----------------------------------------------------------------------------
+void AFXAPI DDX_Distance(CDataExchange *pDX, int nIDC, double &value)
+{
+	HWND hWndCtrl = pDX->PrepareEditCtrl(nIDC);
+	if (pDX->m_bSaveAndValidate) {
+		CString s;
+		CWnd::FromHandle(hWndCtrl)->GetWindowText(s);
+		acdbDisToF(s, -1, &value);
+	} else {
+		ACHAR buf[64];
+		acdbRToS(value, -1, -1, buf);
+		AfxSetWindowText(hWndCtrl, buf);
+	}
+}
+
+} // namespace
+
+//-----------------------------------------------------------------------------
+TESettings g_settings;
+
+CString LoadMsg(UINT id)
+{
+	CString s;
+	if (id && !s.LoadString(_hdllInstance, id, GetUserDefaultLangID()))
+		s.LoadString(_hdllInstance, id, MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US));
+	return s;
+}
+
+//-----------------------------------------------------------------------------
+void TESettings::Load()
+{
+	fontName = kDefaultFontName;
+	CRegKey key;
+	if (key.Open(HKEY_CURRENT_USER, kRegKey, KEY_READ) != ERROR_SUCCESS)
+		return;
+	key.QueryDWORDValue(_T("ExitOnEnter"), exitOnEnter);
+	key.QueryDWORDValue(_T("ExitOnCtrlEnter"), exitOnCtrlEnter);
+	key.QueryDWORDValue(_T("FastYAlign"), fastYAlign);
+	key.QueryDWORDValue(_T("FontSize"), fontSize);
+	TCHAR buf[LF_FACESIZE] = {};
+	ULONG chars = LF_FACESIZE;
+	if (key.QueryStringValue(_T("FontName"), buf, &chars) == ERROR_SUCCESS && buf[0])
+		fontName = buf;
+	//- Guard against a hand-edited registry making the editor unusable
+	if (fontSize < 4 || fontSize > 72)
+		fontSize = 10;
+}
+
+//-----------------------------------------------------------------------------
+void TESettings::Save() const
+{
+	CRegKey key;
+	if (key.Create(HKEY_CURRENT_USER, kRegKey) != ERROR_SUCCESS)
+		return;
+	key.SetDWORDValue(_T("ExitOnEnter"), exitOnEnter);
+	key.SetDWORDValue(_T("ExitOnCtrlEnter"), exitOnCtrlEnter);
+	key.SetDWORDValue(_T("FastYAlign"), fastYAlign);
+	key.SetDWORDValue(_T("FontSize"), fontSize);
+	key.SetStringValue(_T("FontName"), fontName);
+}
+
 //-----------------------------------------------------------------------------
 IMPLEMENT_DYNAMIC (CTEDialog, CAcUiDialog)
 
+const UINT CTEDialog::s_findReplaceMsg = ::RegisterWindowMessage(FINDMSGSTRING);
+
 BEGIN_MESSAGE_MAP(CTEDialog, CAcUiDialog)
-	//{{AFX_MSG_MAP(CTEDialog)
-	ON_MESSAGE(WM_KICKIDLE, OnKickIdle)
-	ON_MESSAGE(WM_TESELCHANGE, OnTESelChange)
+	ON_MESSAGE(WM_KICKIDLE, &CTEDialog::OnKickIdle)
+	ON_MESSAGE(WM_TESELCHANGE, &CTEDialog::OnTESelChange)
 	ON_WM_SETCURSOR()
-	ON_MESSAGE(WM_CONTEXTMENU, OnContextMenu)
+	ON_MESSAGE(WM_CONTEXTMENU, &CTEDialog::OnContextMenu)
 	ON_WM_SIZE()
-	ON_EN_CHANGE(IDC_EDIT, &CTEDialog::OnEnChangeEdit1)
+	ON_EN_CHANGE(IDC_EDIT, &CTEDialog::OnEnChangeEdit)
 	ON_CBN_SELCHANGE(IDC_STYLE, &CTEDialog::OnEnChangeStyle)
 	ON_EN_CHANGE(IDC_HEIGHT, &CTEDialog::OnEnChangeHeight)
 	ON_EN_CHANGE(IDC_LINESPACE, &CTEDialog::OnEnChangeLineSpace)
 	ON_EN_CHANGE(IDC_WIDTH, &CTEDialog::OnEnChangeWidth)
-	ON_NOTIFY(EN_SELCHANGE, IDC_EDIT, CTEDialog::OnSelChange)
+	ON_NOTIFY(EN_SELCHANGE, IDC_EDIT, &CTEDialog::OnSelChange)
 	ON_BN_CLICKED(IDCANCEL, &CTEDialog::OnClose)
 	ON_BN_CLICKED(IDC_ALIGNX, &CTEDialog::OnAlignX)
 	ON_BN_CLICKED(IDC_ALIGNY, &CTEDialog::OnAlignY)
@@ -40,9 +235,8 @@ BEGIN_MESSAGE_MAP(CTEDialog, CAcUiDialog)
 	ON_COMMAND(ID_FIND, &CTEDialog::OnFind)
 	ON_COMMAND(ID_REPLACE, &CTEDialog::OnReplace)
 	ON_COMMAND(ID_ABOUT, &CTEDialog::OnAbout)
-	ON_COMMAND_RANGE(ID_UNDO, ID_SELECTALL, OnEditMenuItems)
-	ON_REGISTERED_MESSAGE(FindReplaceDialogMessage, OnFindReplaceMessage)
-	//}}AFX_MSG_MAP
+	ON_COMMAND_RANGE(ID_UNDO, ID_SELECTALL, &CTEDialog::OnEditMenuItems)
+	ON_REGISTERED_MESSAGE(s_findReplaceMsg, &CTEDialog::OnFindReplaceMessage)
 	ON_COMMAND(ID_FONT, &CTEDialog::OnFont)
 	ON_COMMAND(ID_OPTIONS_EXITONENTER, &CTEDialog::OnOptionExitOnEnter)
 	ON_COMMAND(ID_OPTIONS_EXITONCTRLENTER, &CTEDialog::OnOptionExitOnCtrlEnter)
@@ -50,1181 +244,941 @@ BEGIN_MESSAGE_MAP(CTEDialog, CAcUiDialog)
 END_MESSAGE_MAP()
 
 //-----------------------------------------------------------------------------
-CTEDialog *CTEDialog::dlg = NULL;
-CFindReplaceDialog *CTEDialog::pFindDlg = NULL;
-UINT CTEDialog::FindReplaceDialogMessage = RegisterWindowMessage(FINDMSGSTRING);
-DWORD ExitOnEnter=0;
-DWORD ExitOnCtrlEnter = 0;
-DWORD FastYAlign = 0;
-TCHAR EditorFontName[LF_FACESIZE];
-DWORD EditorFontSize;
-//-----------------------------------------------------------------------------
-HMENU MyLoadMenu(HINSTANCE hInst, LPCTSTR MenuName) {
-	LANGID langid = GetUserDefaultLangID();
-	HRSRC hrsrc = ::FindResourceEx(hInst,RT_MENU,MenuName,langid);
-	if (!hrsrc) {
-		langid =  MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US);
-		hrsrc = ::FindResourceEx(hInst,RT_MENU,MenuName, langid);
-	}
-	HGLOBAL hglb = ::LoadResource(hInst, hrsrc);
-	LPVOID lpsz = ::LockResource(hglb);
-	return ::LoadMenuIndirect(lpsz);
-}
-//-----------------------------------------------------------------------------
-BOOL FilterWinMsg(MSG* Amsg)
+CTEDialog::CTEDialog (CWnd *pParent, HINSTANCE hInstance)
+	: CAcUiDialog (CTEDialog::IDD, pParent, hInstance)
 {
-	if ((Amsg->message < WM_KEYFIRST)||(Amsg->message > WM_KEYLAST))
-		return FALSE;
-	if (GetParent(Amsg->hwnd) != CTEDialog::dlg->hwndDialog)
-		return FALSE;
-	return CTEDialog::dlg->PreTranslateMessage(Amsg);
+	//- Lets AutoCAD remember the dialog size and position between sessions
+	SetDialogName(LoadMsg(IDS_DLGNAME));
 }
-//-----------------------------------------------------------------------------
-LONG QueryRegDWORD(HKEY hkey, LPCTSTR ValueName, DWORD &AValue)
-{
-	DWORD datasize = sizeof(AValue);
-	DWORD tmpVal;
-	LONG res = RegQueryValueEx(hkey, ValueName, NULL, 
-		NULL, (LPBYTE)&tmpVal,(LPDWORD)&datasize);
-	if (ERROR_SUCCESS == res)
-		AValue = tmpVal;
-	return res;
-}
-/*---------------------------------------------*/
-LONG QueryRegBuffer(HKEY hkey, LPCTSTR ValueName, int ASize, LPBYTE AValue)
-{
-	DWORD datasize = ASize;
-	return RegQueryValueEx(hkey, ValueName, NULL, 
-		NULL, (LPBYTE)AValue,(LPDWORD)&datasize);
-}
-/*---------------------------------------------*/
-LONG CreateKey(HKEY hkey, LPCTSTR subkey, HKEY &hkResult)
-{
-	return RegCreateKeyEx(hkey, subkey, 0,
-		_T(""), REG_OPTION_NON_VOLATILE, 
-		KEY_ALL_ACCESS, NULL, &hkResult, NULL);
-}
-/*---------------------------------------------*/
-void CTEDialog::SwitchItem(DWORD &ItemVar, LPCTSTR ItemName)
-{
-	HKEY prodKey;
 
-	ItemVar = !ItemVar;
-	UpdateMenuItems();
-	if (CreateKey(HKEY_CURRENT_USER, pAppInfoLocFull, prodKey) == ERROR_SUCCESS)
-	{
-		RegSetValueEx(prodKey, ItemName, 0, REG_DWORD, 
-			(CONST BYTE *)&ItemVar, sizeof(ItemVar));
-		RegCloseKey(prodKey);
-	}
-}
 //-----------------------------------------------------------------------------
-void CTEDialog::UpdateRegistry()
+bool CTEDialog::LoadSelection(const ads_name sset)
 {
-    HKEY prodKey;
-	if (CreateKey(HKEY_CURRENT_USER, pAppInfoLocFull, prodKey) != ERROR_SUCCESS)
-		return;
-	QueryRegDWORD(prodKey, sExitOnEnter, (DWORD&)ExitOnEnter);
-	QueryRegDWORD(prodKey, sExitOnCtrlEnter, (DWORD&)ExitOnCtrlEnter);
-	QueryRegDWORD(prodKey, sFastYAlign, (DWORD&)FastYAlign);
-	if (QueryRegBuffer(prodKey, sFontName, sizeof(EditorFontName), 
-		(LPBYTE)&EditorFontName) != ERROR_SUCCESS)
-			lstrcpyn(EditorFontName, sDefFontName, LF_FACESIZE);
-	if (QueryRegDWORD(prodKey, sFontSize, (DWORD&)EditorFontSize) != ERROR_SUCCESS)
-		EditorFontSize = 10;
-    RegCloseKey(prodKey);
-}
-//-----------------------------------------------------------------------------
-INT_PTR CALLBACK AboutDlgProc(HWND wnd, UINT message, WPARAM wparam, LPARAM lparam)
-{
-	switch(message) {
-	case WM_INITDIALOG:	{
-		HWND hwndText = GetDlgItem(wnd, IDC_TEXT);
-		SendMessage(hwndText, EM_SETBKGNDCOLOR, 0, GetSysColor(COLOR_BTNFACE));
-		LRESULT evmask = SendMessage(hwndText, EM_SETEVENTMASK, NULL, NULL);
-		SendMessage(hwndText, EM_SETEVENTMASK, 0, evmask | ENM_LINK);
-		SendMessage(hwndText, EM_AUTOURLDETECT, TRUE, 0); 
-		SetDlgItemText(wnd, IDC_TEXT, CMsg(IDS_ABOUT)); 
-		return TRUE;
+	m_dtexts.setLogicalLength(0);
+	m_textType = TETextType::Unknown;
+
+	Adesk::Int32 len = 0;
+	if (acedSSLength(sset, &len) != RTNORM || len == 0)
+		return false;
+
+	//- If at least one DTEXT is picked, edit all picked DTEXTs as lines and
+	//- ignore MTEXT/DIMENSION; otherwise edit the first picked entity.
+	AcDbObjectId firstId;
+	for (Adesk::Int32 i = 0; i < len; i++) {
+		ads_name ent;
+		AcDbObjectId id;
+		if (acedSSName(sset, i, ent) != RTNORM || acdbGetObjectId(id, ent) != Acad::eOk)
+			continue;
+		if (firstId.isNull())
+			firstId = id;
+		if (id.objectClass()->isDerivedFrom(AcDbText::desc()))
+			m_dtexts.append(id);
 	}
-	case WM_COMMAND:
-		switch(LOWORD(wparam)) {
-			case IDCANCEL: EndDialog(wnd, 0);
-		}
-	case WM_NOTIFY:
-		switch(wparam) {
-		case IDC_TEXT: 
-			{
-				ENLINK * penLink = (ENLINK *)lparam;
-				if (penLink->msg == WM_LBUTTONDOWN) {
-					TEXTRANGE rg;
-					TCHAR buf[100];
-					rg.chrg = penLink->chrg;
-					rg.lpstrText = (LPTSTR)&buf;
-					SendMessage(GetDlgItem(wnd, IDC_TEXT), EM_GETTEXTRANGE, 0, (LPARAM)&rg);
-					ShellExecute(wnd, _T("open"), rg.lpstrText, 0, 0, SW_SHOWNORMAL);
-				}
-					
-			}
-		}
-    default:
-		return FALSE;
+
+	if (!m_dtexts.isEmpty()) {
+		m_textType = TETextType::DText;
+		ReadDTextLineSpace();
+		SortDText();
+		//- Line 0 may have changed after sorting; the alignment reference
+		//- point and the default height/width must come from the top line.
+		ReadDTextLineSpace();
+		return true;
+	}
+
+	AcDbEntityPointer pEnt(firstId, AcDb::kForRead);
+	if (pEnt.openStatus() != Acad::eOk)
+		return false;
+	if (auto *pMText = AcDbMText::cast(pEnt.object())) {
+		m_textType = TETextType::MText;
+		m_entId = firstId;
+		m_textHeight = pMText->textHeight();
+		m_widthFactor = pMText->width();
+		m_lineSpace = pMText->lineSpacingFactor();
+	} else if (auto *pDim = AcDbDimension::cast(pEnt.object())) {
+		m_textType = TETextType::Dimension;
+		m_entId = firstId;
+		m_textHeight = pDim->dimtxt();
+	} else {
+		acutPrintf(LoadMsg(IDS_ALLOWEDENT));
+		return false;
 	}
 	return true;
 }
+
 //-----------------------------------------------------------------------------
-void refreshDisplay()
+BOOL CTEDialog::OnInitDialog()
 {
-        actrTransactionManager->queueForGraphicsFlush();
-        actrTransactionManager->flushGraphics();
-        acedUpdateDisplay();
-}
-//-----------------------------------------------------------------------------
-void SetEntText(AcDbEntity *pEnt, CString& txt) {
-	if (pEnt->isKindOf(AcDbMText::desc()))
-		AcDbMText::cast(pEnt)->setContents(txt);
-	else if (pEnt->isKindOf(AcDbDimension::desc()))
-		AcDbDimension::cast(pEnt)->setDimensionText(txt);
-}
-//-----------------------------------------------------------------------------
-void SetEntHeight(AcDbEntity *pEnt, double& h) {
-	if (pEnt->isKindOf(AcDbMText::desc()))
-		AcDbMText::cast(pEnt)->setTextHeight(h);
-	else if (pEnt->isKindOf(AcDbDimension::desc()))
-		AcDbDimension::cast(pEnt)->setDimtxt(h);
-}
-//-----------------------------------------------------------------------------
-
-CTEDialog::CTEDialog (CWnd *pParent /*=NULL*/, HINSTANCE hInstance /*=NULL*/) : CAcUiDialog (CTEDialog::IDD, pParent, hInstance) {
-	SetDialogName(CMsg(IDS_DLGNAME));
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::Cleanup() {
-	if (CTEDialog::dlg == NULL) return;
-	delete CTEDialog::dlg;
-	CTEDialog::dlg = NULL;
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::ShowDlg() {
-	AfxInitRichEdit2();
-	DoModal();
- }
-//-----------------------------------------------------------------------------
-void CTEDialog::OnInitDialogStart() {
-}
-//-----------------------------------------------------------------------------
-BOOL CTEDialog::OnInitDialog() {
-	AcDbEntity *pEnt;
-	if (texttype==MTEXT){
-		GetMTEXTLineSpace();
-		AOK(acdbOpenAcDbEntity(pEnt,EntId, AcDb::kForRead));
-		TextHeight=((AcDbMText*)pEnt)->textHeight();
-		WidthFactor=((AcDbMText*)pEnt)->width();
-		pEnt->close();
-	}
-	else if (texttype==DIMENSION){
-		AOK(acdbOpenAcDbEntity(pEnt,EntId, AcDb::kForRead));
-		TextHeight=((AcDbDimension*)pEnt)->dimtxt();
-		pEnt->close();
-	}
-	else if (texttype==DTEXT) {
-		GetDTEXTLineSpace();
-	}
-
 	CAcUiDialog::OnInitDialog();
-	accel =::LoadAccelerators(_hdllInstance, MAKEINTRESOURCE(IDR_ACCEL));
-	hwndDialog = m_hWnd;
-	::SetMenu(m_hWnd, ::MyLoadMenu(_hdllInstance, MAKEINTRESOURCE(MENU1)));
-	GetDlgItem(IDC_EDIT, &hwndEdit);
-	GetDlgItem(IDC_STYLE, &hwndStyle);
-	GetDlgItem(IDC_HEIGHT, &hwndHeight);
-	GetDlgItem(IDC_LINESPACE, &hwndLineSpace);
-	GetDlgItem(IDC_WIDTH, &hwndWidth);
-	GetDlgItem(IDC_ALIGNX, &hwndAlignX);
-	GetDlgItem(IDC_ALIGNY, &hwndAlignY);
-	edEdit.SetTextMode(TM_PLAINTEXT);
-	SetFont(EditorFontName, EditorFontSize);
-	edEdit.SetEventMask(ENM_CHANGE | ENM_SELCHANGE | ENM_KEYEVENTS);
+
+	m_accel = ::LoadAccelerators(_hdllInstance, MAKEINTRESOURCE(IDR_ACCEL));
+	if (HMENU hMenu = LoadLocalizedMenu(_hdllInstance, MAKEINTRESOURCE(MENU1)))
+		::SetMenu(m_hWnd, hMenu);
+
+	m_edit.SetTextMode(TM_PLAINTEXT | TM_MULTILEVELUNDO);
+	ApplyEditorFont();
+	m_edit.SetEventMask(ENM_CHANGE | ENM_SELCHANGE | ENM_KEYEVENTS);
 	FillStyles();
 
-	if (texttype==DIMENSION)
-	{
-		GetDlgItem(IDC_LINESPACE)->EnableWindow(false);
-		GetDlgItem(IDC_WIDTH)->EnableWindow(false);
+	if (m_textType == TETextType::Dimension) {
+		GetDlgItem(IDC_LINESPACE)->EnableWindow(FALSE);
+		GetDlgItem(IDC_WIDTH)->EnableWindow(FALSE);
 	}
-	if ((texttype==DIMENSION)||(texttype==MTEXT)) {
-		cbStyle.SelectString(-1, GetTextStyle(edEndLn)); 
-		GetDlgItem(IDC_ALIGNX)->EnableWindow(false);
-		GetDlgItem(IDC_ALIGNY)->EnableWindow(false);
+	if (!IsDText()) {
+		m_style.SelectString(-1, GetTextStyleName(0));
+		GetDlgItem(IDC_ALIGNX)->EnableWindow(FALSE);
+		GetDlgItem(IDC_ALIGNY)->EnableWindow(FALSE);
 	}
-	settext();
-	UpdateMenuItems();
-	useevent = true;
-	return TRUE;
-}
-//-----------------------------------------------------------------------------
-static DLGCTLINFO  dlginfo[] = {
-    {IDCANCEL, MOVEX, 100},
-    {IDC_STATUSBAR, ELASTICX | MOVEY, 100},
-    {IDC_EDIT, ELASTICXY, 100},
-};
-void CTEDialog::OnInitDialogFinish() {
-	SetControlProperty((PDLGCTLINFO)&dlginfo, sizeof(dlginfo)/sizeof(DLGCTLINFO));
-	UpdateStatus();
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::OnSize(UINT nType, int cx, int cy) {
-	CAdUiDialog::OnSize(nType, cx, cy);
-	UpdateStatus();
-}
-//-----------------------------------------------------------------------------
-void AFXAPI DDX_CustomDouble(CDataExchange* pDX, int nIDC, double& value) {
-	HWND hWndCtrl = pDX->PrepareEditCtrl(nIDC);
-	if (pDX->m_bSaveAndValidate) {
-		int nLen = ::GetWindowTextLength(hWndCtrl);
-		TCHAR* strbuf = new TCHAR[++nLen];
-		::GetWindowText(hWndCtrl, strbuf, nLen);
-		int status = acdbDisToF(strbuf,-1,&value);
-		delete strbuf;
-	} else {
-		TCHAR strbuf[30];
-		acdbRToS(value,-1,-1,strbuf); 
-		AfxSetWindowText(hWndCtrl, (TCHAR*)&strbuf);
-	}
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::DoDataExchange (CDataExchange *pDX) {
-	CAcUiDialog::DoDataExchange (pDX) ;
-	DDX_Control(pDX, IDC_EDIT, edEdit);
-	DDX_Control(pDX, IDCANCEL, btCancel);
-	DDX_Control(pDX, IDC_STYLE, cbStyle);
-	DDX_CustomDouble(pDX, IDC_HEIGHT, TextHeight);
-	DDX_CustomDouble(pDX, IDC_LINESPACE, LineSpace);
-	DDX_CustomDouble(pDX, IDC_WIDTH, WidthFactor);
-	DDX_Control(pDX, IDC_ALIGNX, btAlignX);
-	DDX_Control(pDX, IDC_ALIGNY, btAlignY);
-	DDX_Control(pDX, IDC_STATUSBAR, stBar);
-}
-//-----------------------------------------------------------------------------
-LRESULT CTEDialog::OnKickIdle (WPARAM, LPARAM) {
-	if (!bNeedUpdStbar) return false;
-	bNeedUpdStbar = false;
-	UINT txt = 0;
-	if (ControlOnIdle == hwndStyle)
-		txt = IDS_TEXTSTYLE;
-	else if (ControlOnIdle == hwndHeight)
-		txt = IDS_TEXTHEIGHT;
-	else if (ControlOnIdle == hwndLineSpace)
-		txt = IDS_LINESPACE;
-	else if (ControlOnIdle == hwndWidth)
-	{
-		if (texttype == MTEXT)
-			txt = IDS_MTEXTWIDTH;
-		else 
-			txt = IDS_WIDTHFACTOR;
-	}
-	else if (ControlOnIdle == hwndAlignX)
-		txt = IDS_ALIGNX;
-	else if (ControlOnIdle == hwndAlignY)
-		txt = IDS_ALIGNY;
-	stBar.SetText(CMsg(txt),0,0);
-	return false;
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::SetFont(LPTSTR FontName, int FontSize)
-{
-	CHARFORMAT2 chf;
-	ZeroMemory(&chf, sizeof(chf));
-	chf.cbSize = sizeof(chf);
-	chf.dwMask = CFM_SIZE | CFM_FACE;
-	chf.wWeight = FW_REGULAR;
 
-	HDC DC = ::GetDC(0);
-	chf.yHeight = -MulDiv (FontSize*10, GetDeviceCaps(DC, LOGPIXELSY), 36); 
-	::ReleaseDC(0,DC);
-	
-	lstrcpyn(chf.szFaceName, FontName, LF_FACESIZE);
-	::SendMessage(hwndEdit, EM_SETCHARFORMAT, 0, LPARAM(&chf));
+	LoadTextFromDb();
+	UpdateMenuItems();
+	m_useEvents = true;
+	m_edit.SetFocus();
+	return FALSE; // focus was set explicitly
 }
+
 //-----------------------------------------------------------------------------
-BOOL CTEDialog::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message) {
-	if (ControlOnIdle != pWnd->GetSafeHwnd())
-	{
-		ControlOnIdle = pWnd->GetSafeHwnd();
-		bNeedUpdStbar = true;
+void CTEDialog::OnInitDialogFinish()
+{
+	//- Resize behaviour: the OK button sticks to the right edge, the status
+	//- bar to the bottom, and the editor takes all remaining space.
+	static DLGCTLINFO layout[] = {
+		{ IDCANCEL, MOVEX, 100 },
+		{ IDC_STATUSBAR, ELASTICX | MOVEY, 100 },
+		{ IDC_EDIT, ELASTICXY, 100 },
+	};
+	SetControlProperty(layout, static_cast<DWORD>(std::size(layout)));
+	UpdateStatusLayout();
+}
+
+//-----------------------------------------------------------------------------
+void CTEDialog::DoDataExchange (CDataExchange *pDX)
+{
+	CAcUiDialog::DoDataExchange (pDX);
+	DDX_Control(pDX, IDC_EDIT, m_edit);
+	DDX_Control(pDX, IDC_STYLE, m_style);
+	DDX_Control(pDX, IDC_STATUSBAR, m_statusBar);
+	DDX_Distance(pDX, IDC_HEIGHT, m_textHeight);
+	DDX_Distance(pDX, IDC_LINESPACE, m_lineSpace);
+	DDX_Distance(pDX, IDC_WIDTH, m_widthFactor);
+}
+
+//-----------------------------------------------------------------------------
+void CTEDialog::OnSize(UINT nType, int cx, int cy)
+{
+	CAcUiDialog::OnSize(nType, cx, cy);
+	if (m_statusBar.GetSafeHwnd())
+		UpdateStatusLayout();
+}
+
+//-----------------------------------------------------------------------------
+void CTEDialog::UpdateStatusLayout()
+{
+	CRect rect;
+	m_statusBar.GetClientRect(&rect);
+	const int r = rect.right;
+	int widths[4] = { r - 190, r - 140, r - 90, r };
+	m_statusBar.SetParts(4, widths);
+	m_statusBar.SetText(kTextTypeNames[static_cast<int>(m_textType)], 2, 0);
+}
+
+//-----------------------------------------------------------------------------
+//- The hint in the status bar is updated on idle, not directly in
+//- OnSetCursor, which fires on every mouse move.
+LRESULT CTEDialog::OnKickIdle (WPARAM, LPARAM)
+{
+	if (!m_needStatusUpdate)
+		return FALSE;
+	m_needStatusUpdate = false;
+	UINT txt = 0;
+	switch (m_hoverCtrl ? ::GetDlgCtrlID(m_hoverCtrl) : 0) {
+	case IDC_STYLE:     txt = IDS_TEXTSTYLE; break;
+	case IDC_HEIGHT:    txt = IDS_TEXTHEIGHT; break;
+	case IDC_LINESPACE: txt = IDS_LINESPACE; break;
+	case IDC_WIDTH:     txt = m_textType == TETextType::MText ? IDS_MTEXTWIDTH : IDS_WIDTHFACTOR; break;
+	case IDC_ALIGNX:    txt = IDS_ALIGNX; break;
+	case IDC_ALIGNY:    txt = IDS_ALIGNY; break;
+	}
+	m_statusBar.SetText(LoadMsg(txt), 0, 0);
+	return FALSE;
+}
+
+//-----------------------------------------------------------------------------
+BOOL CTEDialog::OnSetCursor(CWnd *pWnd, UINT nHitTest, UINT message)
+{
+	if (m_hoverCtrl != pWnd->GetSafeHwnd()) {
+		m_hoverCtrl = pWnd->GetSafeHwnd();
+		m_needStatusUpdate = true;
 	}
 	return CAcUiDialog::OnSetCursor(pWnd, nHitTest, message);
 }
+
+//-----------------------------------------------------------------------------
+void CTEDialog::ApplyEditorFont()
+{
+	CHARFORMAT2 chf {};
+	chf.cbSize = sizeof(chf);
+	chf.dwMask = CFM_SIZE | CFM_FACE;
+	chf.yHeight = static_cast<LONG>(g_settings.fontSize) * 20; // points -> twips
+	lstrcpyn(chf.szFaceName, g_settings.fontName, LF_FACESIZE);
+	m_edit.SetDefaultCharFormat(chf);
+}
+
 //-----------------------------------------------------------------------------
 void CTEDialog::OnUCase()
 {
 	CString s;
-	rtfGetText(s, 2);
+	EditorGetText(s, GT_SELECTION);
 	s.MakeUpper();
-	rtfSetText(s, 2);
-	gettext();
-} 
+	EditorSetText(s, ST_SELECTION);
+	PushTextToDb();
+}
+
 //-----------------------------------------------------------------------------
 void CTEDialog::OnLCase()
 {
 	CString s;
-	rtfGetText(s, 2);
+	EditorGetText(s, GT_SELECTION);
 	s.MakeLower();
-	rtfSetText(s, 2);
-	gettext();
-} 
-//-----------------------------------------------------------------------------
-void CTEDialog::GetLine(int i, CString& s) {
-	int li = edEdit.LineIndex(i);
-	int linelen = edEdit.LineLength(li);
-	edEdit.GetLine(i, s.GetBuffer(linelen+sizeof(int)), linelen+sizeof(int));
-	s.ReleaseBufferSetLength(linelen);
+	EditorSetText(s, ST_SELECTION);
+	PushTextToDb();
 }
+
 //-----------------------------------------------------------------------------
-void CTEDialog::SetInsPoint(AcDbObjectId EntId,AcGePoint3d inspoint)
+CString CTEDialog::GetEditorLine(int i)
 {
-	AcDbText * pEnt;
-	AcGePoint3d pospoint,alignpoint,trans;
-	TextHorzMode hormode;
-	TextVertMode vertmode;
-	AOK(acdbOpenAcDbEntity((AcDbEntity*&)pEnt,EntId, AcDb::kForRead));
-	pospoint=pEnt->position();
-	alignpoint=pEnt->alignmentPoint();
-	hormode=pEnt->horizontalMode();
-	vertmode=pEnt->verticalMode();
-	pEnt->close();
-	AOK(acdbOpenAcDbEntity((AcDbEntity*&)pEnt,EntId, AcDb::kForWrite));
-	if ((vertmode==kTextBase)&&((hormode==kTextLeft)||(hormode==kTextAlign)||(hormode==kTextFit)))
-		pEnt->setPosition(inspoint);
-	else pEnt->setAlignmentPoint(inspoint);
-	if ((hormode==kTextAlign)||(hormode==kTextFit)){
-		alignpoint[0]+=inspoint[0]-pospoint[0];
-		alignpoint[1]+=inspoint[1]-pospoint[1];
-		alignpoint[2]+=inspoint[2]-pospoint[2];
-		pEnt->setAlignmentPoint(alignpoint);
-	}
-	pEnt->close();
+	const int len = m_edit.LineLength(m_edit.LineIndex(i));
+	CString s;
+	//- EM_GETLINE stores the buffer size in the first WORD of the buffer, so
+	//- it needs room for at least 2 characters even for empty lines.
+	const int bufLen = (std::max)(len, 2) + 1;
+	const int got = m_edit.GetLine(i, s.GetBuffer(bufLen), bufLen);
+	s.ReleaseBufferSetLength((std::min)(got, len));
+	return s;
 }
+
 //-----------------------------------------------------------------------------
-AcGePoint3d CTEDialog::GetInsPoint(AcDbObjectId EntId) {
-	AcGePoint3d inspoint;
-	AcDbText * pEnt;
-	TextHorzMode hormode;
-	TextVertMode vertmode;
-	AOK(acdbOpenAcDbEntity((AcDbEntity*&)pEnt,EntId, AcDb::kForRead));
-	hormode=pEnt->horizontalMode();
-	vertmode=pEnt->verticalMode();
-	if ((vertmode==kTextBase)&&((hormode==kTextLeft)||
-		(hormode==kTextAlign)||(hormode==kTextFit)))
-		inspoint=pEnt->position();
-	else inspoint=pEnt->alignmentPoint();
-	pEnt->close();
-	return inspoint;
-}
-//-----------------------------------------------------------------------------
-double CTEDialog::GetDTEXTLineSpace() {
-	AcGePoint3d p1,p2;
-	double d1,d2,d3,d4;
-	AcDbObjectId newEntId, OwnerId;
-	AcDbEntity * pEnt;
-	if (DTextArr.length()>0) {
-		p1=GetInsPoint(DTextArr.at(0));
-		x_1=p1[0];
-		y_1=p1[1];
-		AOK(acdbOpenAcDbEntity(pEnt,DTextArr.at(0), AcDb::kForRead));
-		TextHeight=AcDbText::cast(pEnt)->height();
-		DtextAngle=AcDbText::cast(pEnt)->rotation(); 
-		sin_a=sin(DtextAngle);
-		cos_a=cos(DtextAngle);
-		pEnt->close();
+void CTEDialog::SetInsPoint(AcDbObjectId id, const AcGePoint3d &insPoint) const
+{
+	AcDbObjectPointer<AcDbText> pText(id, AcDb::kForWrite);
+	if (pText.openStatus() != Acad::eOk)
+		return;
+	const AcDb::TextHorzMode hor = pText->horizontalMode();
+	//- Left-baseline, Aligned and Fit texts are anchored by position(); all
+	//- other justifications by alignmentPoint(). Aligned and Fit also need the
+	//- second point moved by the same offset to keep the text length.
+	if (pText->verticalMode() == AcDb::kTextBase &&
+		(hor == AcDb::kTextLeft || hor == AcDb::kTextAlign || hor == AcDb::kTextFit)) {
+		const AcGeVector3d offset = insPoint - pText->position();
+		pText->setPosition(insPoint);
+		if (hor == AcDb::kTextAlign || hor == AcDb::kTextFit)
+			pText->setAlignmentPoint(pText->alignmentPoint() + offset);
+	} else {
+		pText->setAlignmentPoint(insPoint);
 	}
-	if (DTextArr.length()>1) 
+	pText->adjustAlignment(pText->database());
+}
+
+//-----------------------------------------------------------------------------
+AcGePoint3d CTEDialog::GetInsPoint(AcDbObjectId id) const
+{
+	AcDbObjectPointer<AcDbText> pText(id, AcDb::kForRead);
+	if (pText.openStatus() != Acad::eOk)
+		return AcGePoint3d::kOrigin;
+	const AcDb::TextHorzMode hor = pText->horizontalMode();
+	if (pText->verticalMode() == AcDb::kTextBase &&
+		(hor == AcDb::kTextLeft || hor == AcDb::kTextAlign || hor == AcDb::kTextFit))
+		return pText->position();
+	return pText->alignmentPoint();
+}
+
+//-----------------------------------------------------------------------------
+void CTEDialog::ReadDTextLineSpace()
+{
+	if (m_dtexts.isEmpty())
+		return;
+	const AcGePoint3d p1 = GetInsPoint(m_dtexts[0]);
+	m_x1 = p1.x;
+	m_y1 = p1.y;
 	{
-		p2=GetInsPoint(DTextArr[1]);
-		d1=p1[1]*cos_a;
-		d2=p1[0]*sin_a;
-		d3=p2[1]*cos_a;
-		d4=p2[0]*sin_a;
-	    LineSpace=d1-d2-d3+d4;
+		AcDbObjectPointer<AcDbText> pText(m_dtexts[0], AcDb::kForRead);
+		if (pText.openStatus() == Acad::eOk) {
+			m_textHeight = pText->height();
+			m_widthFactor = pText->widthFactor();
+			const double angle = pText->rotation();
+			m_sinA = sin(angle);
+			m_cosA = cos(angle);
+		}
 	}
-	dx=LineSpace*sin_a;
-	dy=LineSpace*cos_a;
-	return LineSpace;
+	if (m_dtexts.length() > 1) {
+		//- Distance between the first two lines, measured perpendicular to
+		//- the text direction.
+		const AcGePoint3d p2 = GetInsPoint(m_dtexts[1]);
+		m_lineSpace = (p1.y - p2.y) * m_cosA - (p1.x - p2.x) * m_sinA;
+	} else {
+		//- The old code left the line space uninitialised in this case.
+		m_lineSpace = m_textHeight * kDefaultLineSpaceFactor;
+	}
+	m_dx = m_lineSpace * m_sinA;
+	m_dy = m_lineSpace * m_cosA;
 }
+
 //-----------------------------------------------------------------------------
-double CTEDialog::GetMTEXTLineSpace()
-{
-	AcDbEntity * pEnt;
-	AOK(acdbOpenAcDbEntity(pEnt,EntId, AcDb::kForRead));
-	LineSpace = ((AcDbMText*)pEnt)->lineSpacingFactor();
-	pEnt->close();
-	return LineSpace;
-}
-//-----------------------------------------------------------------------------
+//- Sorts DTEXT lines top to bottom in the rotated frame of the first line.
+//- Each insertion point is read once instead of on every comparison, which
+//- the old bubble sort did (O(n^2) entity opens).
 void CTEDialog::SortDText()
 {
-	bool sorted=false;
-	int len=DTextArr.length(); 
-	AcGePoint3d p;
-	double x_1,x_2,y_1,y_2;
-    while (!sorted)
-	{
-		sorted=true;
-		for (int i=1;i<len;i++)
-		{
-			p=GetInsPoint(DTextArr.at(i-1));
-			x_1=p[0];
-			y_1=p[1]*cos_a-x_1*sin_a;
-			p=GetInsPoint(DTextArr.at(i));
-			x_2=p[0];
-			y_2=p[1]*cos_a-x_2*sin_a;
-			if (y_2>y_1)
-			{
-				DTextArr.swap((i-1),i);
-				sorted=false;
-			}
-		}
+	const int n = m_dtexts.length();
+	std::vector<double> key(n);
+	for (int i = 0; i < n; i++) {
+		const AcGePoint3d p = GetInsPoint(m_dtexts[i]);
+		key[i] = p.y * m_cosA - p.x * m_sinA;
 	}
+	std::vector<int> order(n);
+	std::iota(order.begin(), order.end(), 0);
+	std::stable_sort(order.begin(), order.end(), [&](int a, int b) { return key[a] > key[b]; });
+	AcDbObjectIdArray sorted;
+	for (int i : order)
+		sorted.append(m_dtexts[i]);
+	m_dtexts = sorted;
 }
+
 //-----------------------------------------------------------------------------
-bool CTEDialog::ParseSset() {
-    AcDbEntity * pEnt;
-	ads_name ent;
-	Adesk::Int32 slen;
-	acedSSLength(sset,&slen);
-	if (slen==0) return false;
-	for (long i=0;i<slen;i++)
-	{
-		acedSSName(sset,i,ent);
-		acdbGetObjectId(EntId, ent);
-		AOK(acdbOpenAcDbEntity(pEnt, EntId, AcDb::kForRead));
-		if (pEnt->isKindOf(AcDbText::desc()))
-			DTextArr.append(EntId);
-		pEnt->close();
-	}
-	texttype = DTEXT;
-	if (DTextArr.logicalLength()==0)
-	{
-		acedSSName(sset,0,ent);
-		acdbGetObjectId(EntId, ent);
-		AOK(acdbOpenAcDbEntity(pEnt, EntId, AcDb::kForRead));
-		if (pEnt->isKindOf(AcDbMText::desc()))
-			texttype = MTEXT;
-		else if (pEnt->isKindOf(AcDbDimension::desc()))
-			texttype = DIMENSION;
-		else {
-			texttype = UNKNOWN;
-			acutPrintf(CMsg(IDS_ALLOWEDENT));
-		}
-		pEnt->close();
-	}
-	if (texttype == UNKNOWN) return false;
-	if (texttype == DTEXT) //DTEXT
-	{
-		GetDTEXTLineSpace();
-		SortDText();
-	}
-	return true;
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::UpdateStatus(){
-	CRect rect;
-	stBar.GetClientRect(&rect);
-	int r = rect.right;
-	int widths[4] = { r-190,r-140, r-90, r };  
-	stBar.SetParts(4,widths);
-	stBar.SetText(texttypenames[texttype], 2,0);
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::FillStyles() {
-	AcDbTextStyleTable* pStyleTable = NULL;
-	AOK(acdbHostApplicationServices()->workingDatabase()->getTextStyleTable(pStyleTable, AcDb::kForRead));
-	AcDbTextStyleTableIterator* pIterator =NULL;
-	pStyleTable->newIterator(pIterator);
-	AcDbTextStyleTableRecord *pStyle = NULL;
-	const TCHAR * name;
-	cbStyle.ResetContent();
-	while (!pIterator->done())
-	{
-		pIterator->getRecord(pStyle, AcDb::kForRead);
-		pStyle->getName(name);
-		if(name != NULL)
-			if (name[0] != NULL)
-				cbStyle.AddString(name);
-		pStyle->close();
-		pIterator->step();
-	}
-	delete pIterator;
-	pStyleTable->close();
-}
-//-----------------------------------------------------------------------------
-const TCHAR* CTEDialog::GetTextStyle(int index)
+void CTEDialog::FillStyles()
 {
-	AcDbObjectId TextStyleId, ObjId;
-	AcDbEntity * pEnt;
-	const TCHAR * str;
-	AcDbTextStyleTableRecord * StyleTableRecord;
-	if (texttype==DTEXT) ObjId = DTextArr[index];
-	else ObjId = EntId;
-	AOK(acdbOpenAcDbEntity(pEnt, ObjId, AcDb::kForRead));
-	if (texttype==DTEXT)
-		TextStyleId = AcDbText::cast(pEnt)->textStyle();
-	else if (texttype==MTEXT)
-		TextStyleId = AcDbMText::cast(pEnt)->textStyle();
-	else if (texttype==DIMENSION)
-		TextStyleId = AcDbDimension::cast(pEnt)->dimtxsty();
-	pEnt->close();
-	AOK(acdbOpenAcDbObject((AcDbObject*&)StyleTableRecord, TextStyleId,AcDb::kForRead));
-	StyleTableRecord->getName(str);
-	StyleTableRecord->close();
-	return str;
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::GetStyleId(CString& s, AcDbObjectId& StyleId)
-{
-	AcDbTextStyleTable* pStyleTable;
-	AcDbTextStyleTableRecord *pStyle;
-	const TCHAR * name;
-	AOK(acdbHostApplicationServices()->workingDatabase()->getTextStyleTable(pStyleTable, AcDb::kForRead));
-	AcDbTextStyleTableIterator* pIterator;
-	pStyleTable->newIterator(pIterator);
-	for( ; !pIterator->done(); pIterator->step())
-	{
-		AOK(pIterator->getRecord(pStyle, AcDb::kForRead));
-		pStyle->getName(name);
-		if(name != NULL)
-			if (_tcscmp(name,s)==0) 
-				StyleId = pStyle->objectId();
-		pStyle->close();
-	}
-	delete pIterator;
-	pStyleTable->close();
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::SetTextStyle(int index, CString& s)
-{
-	AcDbObjectId StyleId, ObjId;
-	AcDbEntity * pEnt;
-	GetStyleId(s, StyleId);
-	if (texttype==DTEXT) ObjId = DTextArr[index];
-	else ObjId = EntId;
-	AOK(acdbOpenAcDbEntity(pEnt, ObjId, AcDb::kForWrite));
-	if (texttype==DTEXT)
-		AcDbText::cast(pEnt)->setTextStyle(StyleId);
-	else if (texttype==MTEXT)
-		AcDbMText::cast(pEnt)->setTextStyle(StyleId);
-	else if (texttype==DIMENSION)
-		AcDbDimension::cast(pEnt)->setDimtxsty(StyleId);
-	pEnt->close();
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::UpdateMenuItems() {
-	int IsCheck  = MF_UNCHECKED;
-	CMenu * mnu = GetMenu();
-	mnu->CheckMenuItem(ID_OPTIONS_EXITONENTER, MF_BYCOMMAND | 
-		(ExitOnEnter ? MF_CHECKED : MF_UNCHECKED)); 
-	mnu->CheckMenuItem(ID_OPTIONS_EXITONCTRLENTER, MF_BYCOMMAND | 
-		(ExitOnCtrlEnter ? MF_CHECKED : MF_UNCHECKED)); 
-	mnu->CheckMenuItem(ID_OPTIONS_FASTYALIGN, MF_BYCOMMAND | 
-		(FastYAlign ? MF_CHECKED : MF_UNCHECKED)); 
-	
-	if (texttype != DTEXT)
-	{
-		mnu->EnableMenuItem(ID_ALIGNX, MF_BYCOMMAND | MF_GRAYED);	
-		mnu->EnableMenuItem(ID_ALIGNY, MF_BYCOMMAND | MF_GRAYED);	
-	}
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::GetObjIdText(AcDbObjectId eId, TETextType tt, CString &str) {
-	AcDbEntity *pEnt;
-	AOK(acdbOpenAcDbEntity(pEnt,eId, AcDb::kForRead));
-	GetEntText(pEnt, tt, str);
-	pEnt->close();
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::GetEntText(AcDbEntity *pEnt, TETextType tt, CString &str) {
-	const ACHAR *s = NULL;
-#ifdef _BRX
-	if (tt == DTEXT) s=((AcDbText*)pEnt)->textString();
-	else if (tt == MTEXT) s=((AcDbMText*)pEnt)->contents();
-	else if (tt == DIMENSION) s=((AcDbDimension*)pEnt)->dimensionText();
-	str = s;
-	if (s != NULL) delete s;
-#else
-	if (pEnt->hasFields()) {
-		AcDbField * pField;
-		pEnt->getField(_T("TEXT"), pField, AcDb::kForRead);
-		s = pField->getFieldCode(AcDbField::kAddMarkers);            
-		str = s;
-		pField->close();
-	} 
-	else {
-		if (tt == DTEXT) s=((AcDbText*)pEnt)->textString();
-		else if (tt == MTEXT) s=((AcDbMText*)pEnt)->contents();
-		else if (tt == DIMENSION) s=((AcDbDimension*)pEnt)->dimensionText();
-		str = s;
-		if (s != NULL) delete s;
-	}
-#endif
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::rtfGetText(CString &s, DWORD flags)
-{
-	int textlen;
-	textlen = edEdit.GetTextLengthEx(flags, 1200);
-	LPTSTR buf = s.GetBuffer(textlen);
-	GETTEXTEX st;
-	st.cb = (textlen+1)*2;
-	st.flags = flags;
-	st.codepage = 1200;
-	st.lpDefaultChar = NULL;
-	st.lpUsedDefChar = NULL;
-	edEdit.SendMessage(EM_GETTEXTEX, (WPARAM)&st, (LPARAM)buf);
-	s.ReleaseBuffer();
-	return;
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::rtfSetText(const CString &s, DWORD flags) {
-	long selstart, selend;
-	edEdit.GetSel(selstart, selend);
-	SETTEXTEX st;
-	st.flags = flags;
-	st.codepage = 1200;
-	DWORD oldmask = edEdit.GetEventMask();
-    edEdit.SetEventMask(oldmask & ~ENM_CHANGE);
-	edEdit.SendMessage(EM_SETTEXTEX, (WPARAM)&st, (LPARAM)(LPCTSTR)s);
-	edEdit.SendMessage(EM_SETSEL, selstart, selend);
-    edEdit.SetEventMask(oldmask);
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::gettext()
-{
-	AcGePoint3d textpos;
-	AcDbObjectId newEntId, OwnerId;
-	AcDbEntity *pEnt, *pNewEnt;
-	CString s;
-	AcAxDocLock lock(acdbCurDwg());
-	int linecount,dtextcount,mincount;//, textlen;
-	if ((texttype==MTEXT) || (texttype==DIMENSION)) {
-		rtfGetText(s, GT_DEFAULT/*GT_USECRLF*/); 
-		s.Replace(_T("\r"), _T("\\P"));
-		AOK(acdbOpenAcDbEntity(pEnt,EntId, AcDb::kForWrite));
-		SetEntText(pEnt, s);
-		pEnt->close();
-#ifndef _BRX
-		acdbEvaluateFields(EntId, AcDbField::kPreview);
-#endif
-		refreshDisplay();
+	m_style.ResetContent();
+	AcDbTextStyleTable *pTable = nullptr;
+	if (acdbHostApplicationServices()->workingDatabase()->getTextStyleTable(pTable, AcDb::kForRead) != Acad::eOk)
 		return;
+	AcDbTextStyleTableIterator *pIter = nullptr;
+	if (pTable->newIterator(pIter) == Acad::eOk) {
+		for (; !pIter->done(); pIter->step()) {
+			AcDbTextStyleTableRecord *pStyle = nullptr;
+			if (pIter->getRecord(pStyle, AcDb::kForRead) != Acad::eOk)
+				continue;
+			//- Shape files loaded with LOAD create unnamed style records;
+			//- they cannot be assigned to text.
+			AcString name;
+			if (pStyle->getName(name) == Acad::eOk && !name.isEmpty() && !pStyle->isShapeFile())
+				m_style.AddString(name.kwszPtr());
+			pStyle->close();
+		}
+		delete pIter;
 	}
-	//DTEXT
-	//ControlDTEXTLimit(hWnd);
-	linecount=edEdit.GetLineCount();
-	dtextcount=DTextArr.length();
-	mincount=dtextcount>linecount?linecount:dtextcount;
-	for (int i=0;i<mincount;i++)
+	pTable->close();
+}
+
+//-----------------------------------------------------------------------------
+CString CTEDialog::GetTextStyleName(int index) const
+{
+	AcDbObjectId styleId;
 	{
-		GetLine(i,s);
-		AOK(acdbOpenAcDbEntity(pEnt,DTextArr[i], AcDb::kForWrite));
-		AcDbText::cast(pEnt)->setTextString(s);
-		pEnt->close();
-#ifndef _BRX
-		acdbEvaluateFields(DTextArr[i], AcDbField::kPreview);
-#endif
+		AcDbEntityPointer pEnt(IsDText() ? m_dtexts[index] : m_entId, AcDb::kForRead);
+		if (pEnt.openStatus() != Acad::eOk)
+			return CString();
+		if (auto *pText = AcDbText::cast(pEnt.object()))
+			styleId = pText->textStyle();
+		else if (auto *pMText = AcDbMText::cast(pEnt.object()))
+			styleId = pMText->textStyle();
+		else if (auto *pDim = AcDbDimension::cast(pEnt.object()))
+			styleId = pDim->dimtxsty();
+	}
+	//- Copy the name before the record is closed; the old code returned a
+	//- pointer into the already closed record.
+	AcDbObjectPointer<AcDbTextStyleTableRecord> pStyle(styleId, AcDb::kForRead);
+	AcString name;
+	if (pStyle.openStatus() == Acad::eOk)
+		pStyle->getName(name);
+	return CString(name.kwszPtr());
+}
+
+//-----------------------------------------------------------------------------
+void CTEDialog::SetTextStyle(int index, const CString &name)
+{
+	const AcDbObjectId styleId = FindTextStyle(name);
+	if (styleId.isNull())
+		return;
+	AcDbEntityPointer pEnt(IsDText() ? m_dtexts[index] : m_entId, AcDb::kForWrite);
+	if (pEnt.openStatus() != Acad::eOk)
+		return;
+	if (auto *pText = AcDbText::cast(pEnt.object()))
+		pText->setTextStyle(styleId);
+	else if (auto *pMText = AcDbMText::cast(pEnt.object()))
+		pMText->setTextStyle(styleId);
+	else if (auto *pDim = AcDbDimension::cast(pEnt.object()))
+		pDim->setDimtxsty(styleId);
+}
+
+//-----------------------------------------------------------------------------
+void CTEDialog::UpdateMenuItems()
+{
+	CMenu *pMenu = GetMenu();
+	if (!pMenu)
+		return;
+	auto check = [pMenu](UINT id, DWORD on) {
+		pMenu->CheckMenuItem(id, MF_BYCOMMAND | (on ? MF_CHECKED : MF_UNCHECKED));
+	};
+	check(ID_OPTIONS_EXITONENTER, g_settings.exitOnEnter);
+	check(ID_OPTIONS_EXITONCTRLENTER, g_settings.exitOnCtrlEnter);
+	check(ID_OPTIONS_FASTYALIGN, g_settings.fastYAlign);
+	if (!IsDText()) {
+		pMenu->EnableMenuItem(ID_ALIGNX, MF_BYCOMMAND | MF_GRAYED);
+		pMenu->EnableMenuItem(ID_ALIGNY, MF_BYCOMMAND | MF_GRAYED);
+	}
+}
+
+//-----------------------------------------------------------------------------
+void CTEDialog::EditorGetText(CString &s, DWORD flags)
+{
+	LONG len = 0;
+	if (flags & GT_SELECTION) {
+		long start = 0, end = 0;
+		m_edit.GetSel(start, end);
+		len = end - start;
+	} else {
+		GETTEXTLENGTHEX gtl { GTL_DEFAULT | GTL_NUMCHARS, kCodePageUtf16 };
+		len = static_cast<LONG>(m_edit.SendMessage(EM_GETTEXTLENGTHEX, reinterpret_cast<WPARAM>(&gtl), 0));
+	}
+	GETTEXTEX gt { static_cast<DWORD>((len + 1) * sizeof(WCHAR)), flags, kCodePageUtf16, nullptr, nullptr };
+	m_edit.SendMessage(EM_GETTEXTEX, reinterpret_cast<WPARAM>(&gt), reinterpret_cast<LPARAM>(s.GetBuffer(len + 1)));
+	s.ReleaseBuffer();
+}
+
+//-----------------------------------------------------------------------------
+//- Sets editor text without firing EN_CHANGE, so programmatic updates do not
+//- loop back into the database.
+void CTEDialog::EditorSetText(const CString &s, DWORD flags)
+{
+	long selStart = 0, selEnd = 0;
+	m_edit.GetSel(selStart, selEnd);
+	SETTEXTEX st { flags | ST_KEEPUNDO, kCodePageUtf16 };
+	const DWORD oldMask = m_edit.GetEventMask();
+	m_edit.SetEventMask(oldMask & ~ENM_CHANGE);
+	m_edit.SendMessage(EM_SETTEXTEX, reinterpret_cast<WPARAM>(&st), reinterpret_cast<LPARAM>(static_cast<LPCTSTR>(s)));
+	m_edit.SetSel(selStart, selEnd);
+	m_edit.SetEventMask(oldMask);
+}
+
+//-----------------------------------------------------------------------------
+//- Writes the editor contents back to the drawing. Called on every change so
+//- the drawing previews the edit live.
+void CTEDialog::PushTextToDb()
+{
+	AcAxDocLock lock(acdbCurDwg());
+
+	if (!IsDText()) {
+		CString s;
+		EditorGetText(s, GT_DEFAULT);
+		//- The rich edit control stores paragraphs as a bare \r
+		s.Replace(_T("\r"), _T("\\P"));
+		{
+			AcDbEntityPointer pEnt(m_entId, AcDb::kForWrite);
+			if (pEnt.openStatus() != Acad::eOk)
+				return;
+			if (auto *pMText = AcDbMText::cast(pEnt.object()))
+				pMText->setContents(s);
+			else if (auto *pDim = AcDbDimension::cast(pEnt.object()))
+				pDim->setDimensionText(s);
+		}
+		acdbEvaluateFields(m_entId, AcDbField::kPreview);
+		RefreshDisplay();
+		return;
 	}
 
-	if (dtextcount>=linecount) //кол-во строк убавились или осталось прежним
-		for (int i=dtextcount-1;i>=linecount;i--)
+	const int lineCount = m_edit.GetLineCount();
+	const int dtextCount = m_dtexts.length();
+	for (int i = 0; i < (std::min)(dtextCount, lineCount); i++) {
 		{
-			AOK(acdbOpenAcDbEntity(pEnt,DTextArr[i], AcDb::kForWrite));
-			DTextArr.removeAt(i);
-			pEnt->erase();
-			pEnt->close();
+			AcDbObjectPointer<AcDbText> pText(m_dtexts[i], AcDb::kForWrite);
+			if (pText.openStatus() != Acad::eOk)
+				continue;
+			pText->setTextString(GetEditorLine(i));
 		}
-	else //добавились строки.
-		for (int i=dtextcount;i<linecount;i++)
-		{
-			GetLine(i,s);
-			EntId=DTextArr[i-1];
-			AOK(acdbOpenAcDbEntity(pEnt,EntId, AcDb::kForRead));
-			pNewEnt=AcDbEntity::cast(pEnt->clone());
-			OwnerId=pEnt->ownerId();
-			pEnt->close();
-			AcDbBlockTableRecord *pBlockTableRecord;
-			AOK(acdbOpenAcDbObject((AcDbObject*&)pBlockTableRecord,OwnerId,AcDb::kForWrite));
-			pBlockTableRecord->appendAcDbEntity(newEntId, pNewEnt);
-			pBlockTableRecord->close();
-			AcDbText::cast(pNewEnt)->setTextString(s);
-			pNewEnt->close();
-#ifndef _BRX
-			acdbEvaluateFields(newEntId, AcDbField::kPreview);
-#endif
-			textpos=GetInsPoint(EntId);
-			textpos[0]+=dx;
-			textpos[1]-=dy;
-			SetInsPoint(newEntId,textpos);
-			DTextArr.append(newEntId);
+		acdbEvaluateFields(m_dtexts[i], AcDbField::kPreview);
+	}
+
+	if (dtextCount > lineCount) {
+		//- Lines were deleted in the editor: erase the surplus DTEXTs
+		for (int i = dtextCount - 1; i >= lineCount; i--) {
+			AcDbEntityPointer pEnt(m_dtexts[i], AcDb::kForWrite);
+			if (pEnt.openStatus() == Acad::eOk)
+				pEnt->erase();
+			m_dtexts.removeAt(i);
 		}
-	refreshDisplay();
-	return;
-}//gettext
-//-----------------------------------------------------------------------------
-void CTEDialog::settext()
-{
-	CString s,tmps;
-	int arrlen = DTextArr.length();
-	if (texttype==DTEXT){
-		for (int i=0;i<arrlen;i++)
-		{
-			GetObjIdText(DTextArr[i], texttype, tmps);
-			if (i>0) s.Append(_T("\r\n"));
-			s.Append(tmps);
+	} else {
+		//- Lines were added: copy the last DTEXT one line space further down
+		for (int i = dtextCount; i < lineCount; i++) {
+			const AcDbObjectId prevId = m_dtexts[i - 1];
+			const AcDbObjectId newId = CloneDText(prevId);
+			if (newId.isNull())
+				break;
+			{
+				AcDbObjectPointer<AcDbText> pText(newId, AcDb::kForWrite);
+				if (pText.openStatus() == Acad::eOk) {
+					//- A field copied from the previous line would overwrite
+					//- the text typed for this one on the next evaluation.
+					if (pText->hasFields())
+						pText->removeField(_T("TEXT"));
+					pText->setTextString(GetEditorLine(i));
+				}
+			}
+			AcGePoint3d pos = GetInsPoint(prevId);
+			pos.x += m_dx;
+			pos.y -= m_dy;
+			SetInsPoint(newId, pos);
+			m_dtexts.append(newId);
 		}
 	}
-	else {
-		GetObjIdText(EntId, texttype, s);
-		s.Replace(_T("\\P"), _T("\r\n")); 
-	}
-	rtfSetText(s, 0); 
-	return;
+	RefreshDisplay();
 }
+
 //-----------------------------------------------------------------------------
-void CTEDialog::ShowTextParams(long edStartLn, long edEndLn)
+void CTEDialog::LoadTextFromDb()
 {
-	AcDbText * pEnt;
-	double prevHeight, Height;
-	double prevwf, wf;
-	AcDbObjectId prevStyleId, StyleId;
-	ACHAR strbuf[30];
-	if (texttype != DTEXT)
+	CString s;
+	if (IsDText()) {
+		for (int i = 0; i < m_dtexts.length(); i++) {
+			if (i > 0)
+				s += _T("\r\n");
+			s += ReadEntityText(m_dtexts[i]);
+		}
+	} else {
+		s = ReadEntityText(m_entId);
+		s.Replace(_T("\\P"), _T("\r\n"));
+	}
+	EditorSetText(s, ST_DEFAULT);
+	//- Loading the text is not a user edit; start with an empty undo stack.
+	m_edit.EmptyUndoBuffer();
+}
+
+//-----------------------------------------------------------------------------
+//- Shows height, width factor and style of the DTEXT lines touched by the
+//- editor selection; a field is left empty when the lines differ.
+void CTEDialog::ShowTextParams()
+{
+	if (!IsDText())
 		return;
-	useevent = false;
-	bool heightequal=true, styleequal=true, wfequal=true;
-	for (long i=edStartLn; i<=edEndLn; i++)
-	{
-		AOK(acdbOpenAcDbEntity((AcDbEntity*&)pEnt,DTextArr[i], AcDb::kForRead));
-		Height=pEnt->height();
-		wf=pEnt->widthFactor();
-		StyleId=pEnt->textStyle();
-		pEnt->close();
-		if (i==edStartLn)
-		{
-			prevHeight = Height;
-			prevwf = wf;
-			prevStyleId = StyleId;
+	const long last = (std::min<long>)(m_endLn, m_dtexts.length() - 1);
+	if (m_startLn > last)
+		return;
+
+	m_useEvents = false;
+	bool heightEqual = true, wfEqual = true, styleEqual = true;
+	double height = 0.0, wf = 0.0;
+	AcDbObjectId styleId;
+	for (long i = m_startLn; i <= last; i++) {
+		AcDbObjectPointer<AcDbText> pText(m_dtexts[i], AcDb::kForRead);
+		if (pText.openStatus() != Acad::eOk)
+			continue;
+		if (i == m_startLn) {
+			height = pText->height();
+			wf = pText->widthFactor();
+			styleId = pText->textStyle();
 			continue;
 		}
-		if (prevHeight != Height)
-			heightequal=false;
-		if (prevwf != wf)
-			wfequal=false;
-		if (prevStyleId != StyleId)
-			styleequal=false;
+		heightEqual = heightEqual && pText->height() == height;
+		wfEqual = wfEqual && pText->widthFactor() == wf;
+		styleEqual = styleEqual && pText->textStyle() == styleId;
 	}
-	if (heightequal)
-		acdbRToS(Height,-1,-1,strbuf);
+	if (heightEqual)
+		SetDlgItemDouble(IDC_HEIGHT, height);
 	else
-		strbuf[0]=0;
-	GetDlgItem(IDC_HEIGHT)->SetWindowText(strbuf);
-	if (wfequal)
-		acdbRToS(wf,-1,-1,strbuf);
+		SetDlgItemText(IDC_HEIGHT, _T(""));
+	if (wfEqual)
+		SetDlgItemDouble(IDC_WIDTH, wf);
 	else
-		strbuf[0]=0;
-	GetDlgItem(IDC_WIDTH)->SetWindowText(strbuf);
-	if (styleequal)
-		cbStyle.SelectString(-1,GetTextStyle(edEndLn)); 
+		SetDlgItemText(IDC_WIDTH, _T(""));
+	if (styleEqual)
+		m_style.SelectString(-1, GetTextStyleName(m_startLn));
 	else
-		cbStyle.SetCurSel(-1);
-	useevent = true;
+		m_style.SetCurSel(-1);
+	m_useEvents = true;
+}
 
-}
 //-----------------------------------------------------------------------------
-void CTEDialog::GetSelParams() {
-	edEdit.GetSel(edSelStart, edSelEnd);
-	edEndLn = edEdit.LineFromChar(edSelEnd);
-	edStartLn = edEdit.LineFromChar(edSelStart);
-	edCol = edSelEnd - edEdit.LineIndex(edEndLn);
+void CTEDialog::ReadSelection()
+{
+	m_edit.GetSel(m_selStart, m_selEnd);
+	m_endLn = m_edit.LineFromChar(m_selEnd);
+	m_startLn = m_edit.LineFromChar(m_selStart);
+	m_col = m_selEnd - m_edit.LineIndex(m_endLn);
 }
+
 //-----------------------------------------------------------------------------
-void CTEDialog::ShowCarPos() {
-	GetSelParams();
+void CTEDialog::ShowCaretPos()
+{
+	ReadSelection();
 	CString s;
-	s.Format(CMsg(IDS_CURSORPOS),edEndLn+1,edCol+1); 
-	stBar.SetText(s, 3, 0);
+	s.Format(LoadMsg(IDS_CURSORPOS), m_endLn + 1, m_col + 1);
+	m_statusBar.SetText(s, 3, 0);
 }
+
 //-----------------------------------------------------------------------------
-int CTEDialog::GetDlgItemFloat(int Item, double &AValue)
+bool CTEDialog::GetDlgItemDouble(int item, double &value) const
 {
-	HWND wnd = ::GetDlgItem(hwndDialog, Item); 
-	UINT sellen = ::GetWindowTextLength(wnd);
-	LPTSTR strbuf = new TCHAR[++sellen];
-	::GetWindowText(wnd, strbuf, sellen);
-	int status = acdbDisToF(strbuf,-1,&AValue);
-	delete strbuf;
-	return status;
+	CString s;
+	GetDlgItemText(item, s);
+	double v = 0.0;
+	if (s.IsEmpty() || acdbDisToF(s, -1, &v) != RTNORM)
+		return false;
+	value = v;
+	return true;
 }
+
 //-----------------------------------------------------------------------------
-void CTEDialog::SetDlgItemFloat(int Item, double AValue)
+void CTEDialog::SetDlgItemDouble(int item, double value)
 {
-	TCHAR strbuf[30];
-	acdbRToS(AValue,-1,-1,strbuf); 
-	::SetWindowText(::GetDlgItem(hwndDialog, Item), (LPTSTR)&strbuf);
+	ACHAR buf[64];
+	acdbRToS(value, -1, -1, buf);
+	SetDlgItemText(item, buf);
 }
+
 //-----------------------------------------------------------------------------
 void CTEDialog::OnClose()
 {
-	EndDialog(FALSE);
+	EndDialog(IDOK);
 }
+
 //-----------------------------------------------------------------------------
 void CTEDialog::OnAlignX()
 {
-	if (texttype != DTEXT)
+	if (!IsDText())
 		return;
-	double x1,x2,y2,y_2;
-	AcGePoint3d p;
-	x1=x_1*cos_a+y_1*sin_a;
 	AcAxDocLock lock(acdbCurDwg());
-	for (int i=1;i<DTextArr.length();i++)
-	{
-		p=GetInsPoint(DTextArr.at(i));
-		x2=p[0];
-		y2=p[1];
-		y_2=x2*sin_a-y2*cos_a;
-		p[0]=x1*cos_a+y_2*sin_a;
-		p[1]=x1*sin_a-y_2*cos_a;
-		SetInsPoint(DTextArr.at(i),p);
+	//- Work in the rotated frame of the first line: keep each line's offset
+	//- along the line normal and give it the first line's coordinate along
+	//- the text direction.
+	const double x1 = m_x1 * m_cosA + m_y1 * m_sinA;
+	for (int i = 1; i < m_dtexts.length(); i++) {
+		AcGePoint3d p = GetInsPoint(m_dtexts[i]);
+		const double y2 = p.x * m_sinA - p.y * m_cosA;
+		p.x = x1 * m_cosA + y2 * m_sinA;
+		p.y = x1 * m_sinA - y2 * m_cosA;
+		SetInsPoint(m_dtexts[i], p);
 	}
-	refreshDisplay();
-	ShowCarPos();
+	RefreshDisplay();
+	ShowCaretPos();
 }
+
 //-----------------------------------------------------------------------------
 void CTEDialog::OnAlignY()
 {
-	if (texttype != DTEXT)
+	if (!IsDText())
 		return;
-	double x2,y1,y2,x_2;
-	AcGePoint3d p;
-	y1=x_1*sin_a-y_1*cos_a;
 	AcAxDocLock lock(acdbCurDwg());
-	for (int i=1;i<DTextArr.length();i++)
-	{
-		p=GetInsPoint(DTextArr.at(i));
-		x2=p[0];
-		y2=p[1];
-		x_2=x2*cos_a+y2*sin_a;
-		p[0]=x_2*cos_a+(y1+LineSpace*i)*sin_a;
-		p[1]=x_2*sin_a-(y1+LineSpace*i)*cos_a;
-		SetInsPoint(DTextArr.at(i),p);
+	//- Keep each line's coordinate along the text direction and stack the
+	//- lines one line space apart below the first one.
+	const double y1 = m_x1 * m_sinA - m_y1 * m_cosA;
+	for (int i = 1; i < m_dtexts.length(); i++) {
+		AcGePoint3d p = GetInsPoint(m_dtexts[i]);
+		const double x2 = p.x * m_cosA + p.y * m_sinA;
+		p.x = x2 * m_cosA + (y1 + m_lineSpace * i) * m_sinA;
+		p.y = x2 * m_sinA - (y1 + m_lineSpace * i) * m_cosA;
+		SetInsPoint(m_dtexts[i], p);
 	}
-	refreshDisplay();
-	ShowCarPos();
+	RefreshDisplay();
+	ShowCaretPos();
 }
+
 //-----------------------------------------------------------------------------
-void CTEDialog::OnEnChangeEdit1()
+void CTEDialog::OnEnChangeEdit()
 {
-	gettext();
+	if (m_useEvents)
+		PushTextToDb();
 }
-//-----------------------------------------------------------------------------
-void CTEDialog::setDTEXTHeight(int index, double height)
-{
-	AcDbEntity * pEnt;
-	AOK(acdbOpenAcDbEntity(pEnt,DTextArr.at(index), AcDb::kForWrite));
-	AcDbText::cast(pEnt)->setHeight(height);
-	pEnt->close();
-}
+
 //-----------------------------------------------------------------------------
 void CTEDialog::OnEnChangeStyle()
 {
-	CString s;
-	if (!useevent) return;
+	if (!m_useEvents)
+		return;
 	AcAxDocLock lock(acdbCurDwg());
-	cbStyle.GetWindowText(s);
-	GetSelParams();
-	long startline = edStartLn;
-	if (texttype==DTEXT) {
-		while (startline<=edEndLn) SetTextStyle(startline++,s);
-	} else if ((texttype==MTEXT) || (texttype==DIMENSION))
-		SetTextStyle(0, s); 
-	refreshDisplay();
-	ShowCarPos();
+	CString name;
+	m_style.GetWindowText(name);
+	ReadSelection();
+	if (IsDText()) {
+		for (long i = m_startLn; i <= m_endLn && i < m_dtexts.length(); i++)
+			SetTextStyle(i, name);
+	} else {
+		SetTextStyle(0, name);
+	}
+	RefreshDisplay();
+	ShowCaretPos();
 }
+
 //-----------------------------------------------------------------------------
 void CTEDialog::OnEnChangeHeight()
 {
-	int res;
-	double textheight;
-	if (!useevent) return;
+	double height = 0.0;
+	if (!m_useEvents || !GetDlgItemDouble(IDC_HEIGHT, height) || height <= 0.0)
+		return;
 	AcAxDocLock lock(acdbCurDwg());
-	res = GetDlgItemFloat(IDC_HEIGHT, textheight);
-	// TODO !!! if error then show message in status window
-	if (res!=RTNORM) return;
-	GetSelParams();
-	long startline = edStartLn;
-	if (texttype==DTEXT) {
-		while (startline<=edEndLn) setDTEXTHeight(startline++,textheight);
-	} else if ((texttype==MTEXT) || (texttype==DIMENSION)) {
-		AcDbEntity * pEnt;
-		AOK(acdbOpenAcDbEntity(pEnt,EntId, AcDb::kForWrite));
-		SetEntHeight(pEnt, textheight); 
-		pEnt->close();
+	ReadSelection();
+	if (IsDText()) {
+		for (long i = m_startLn; i <= m_endLn && i < m_dtexts.length(); i++) {
+			AcDbObjectPointer<AcDbText> pText(m_dtexts[i], AcDb::kForWrite);
+			if (pText.openStatus() == Acad::eOk)
+				pText->setHeight(height);
+		}
+	} else {
+		AcDbEntityPointer pEnt(m_entId, AcDb::kForWrite);
+		if (pEnt.openStatus() == Acad::eOk) {
+			if (auto *pMText = AcDbMText::cast(pEnt.object()))
+				pMText->setTextHeight(height);
+			else if (auto *pDim = AcDbDimension::cast(pEnt.object()))
+				pDim->setDimtxt(height);
+		}
 	}
-	refreshDisplay();
-	ShowCarPos();
+	RefreshDisplay();
+	ShowCaretPos();
 }
-//-----------------------------------------------------------------------------
-Acad::ErrorStatus CTEDialog::setMTextLSpace(double& lspace)
-{
-	AcDbEntity * pEnt;
-	AOK(acdbOpenAcDbEntity(pEnt,EntId, AcDb::kForWrite));
-	Acad::ErrorStatus res = ((AcDbMText*)pEnt)->setLineSpacingFactor(LineSpace);
-	pEnt->close();
-	return res;
-}
+
 //-----------------------------------------------------------------------------
 void CTEDialog::OnEnChangeLineSpace()
 {
-	int res;
-	if (!useevent) return;
-	AcAxDocLock lock(acdbCurDwg());
-	res = GetDlgItemFloat(IDC_LINESPACE, LineSpace);
-	// TODO !!! if error then show message in status window
-	if (res!=RTNORM) return;
-	// TODO: make common function to get selection params
-	if (texttype==DTEXT)
-	{
-		dx=LineSpace*sin_a;
-		dy=LineSpace*cos_a;
-		if (FastYAlign) 
+	double lineSpace = 0.0;
+	if (!m_useEvents || !GetDlgItemDouble(IDC_LINESPACE, lineSpace))
+		return;
+	m_lineSpace = lineSpace;
+	if (IsDText()) {
+		m_dx = m_lineSpace * m_sinA;
+		m_dy = m_lineSpace * m_cosA;
+		if (g_settings.fastYAlign)
 			OnAlignY();
+	} else if (m_textType == TETextType::MText) {
+		//- AutoCAD rejects MTEXT line spacing factors outside 0.25..4.0; the
+		//- error status is enough to ignore such intermediate input.
+		AcAxDocLock lock(acdbCurDwg());
+		Acad::ErrorStatus es = Acad::eInvalidInput;
+		{
+			AcDbObjectPointer<AcDbMText> pMText(m_entId, AcDb::kForWrite);
+			if (pMText.openStatus() == Acad::eOk)
+				es = pMText->setLineSpacingFactor(m_lineSpace);
+		}
+		if (es == Acad::eOk)
+			RefreshDisplay();
 	}
-	else if (texttype==MTEXT)
-		if (setMTextLSpace(LineSpace) == eOk)
-			refreshDisplay();
 }
+
 //-----------------------------------------------------------------------------
 void CTEDialog::OnEnChangeWidth()
 {
-	int res;
-	double w;
-	AcDbEntity * pEnt;
-	if (!useevent) return;
+	double w = 0.0;
+	if (!m_useEvents || !GetDlgItemDouble(IDC_WIDTH, w) || w <= 0.0)
+		return;
 	AcAxDocLock lock(acdbCurDwg());
-	res = GetDlgItemFloat(IDC_WIDTH, w);
-	// TODO !!! if error then show message in status window
-	if (res!=RTNORM) return;
-	GetSelParams();
-	long startline = edStartLn;
-	if (texttype==DTEXT) {
-	while (startline<=edEndLn) {
-		AOK(acdbOpenAcDbEntity(pEnt,DTextArr[startline++], AcDb::kForWrite));
-		AcDbText::cast(pEnt)->setWidthFactor(w);
-		pEnt->close();
+	ReadSelection();
+	if (IsDText()) {
+		for (long i = m_startLn; i <= m_endLn && i < m_dtexts.length(); i++) {
+			AcDbObjectPointer<AcDbText> pText(m_dtexts[i], AcDb::kForWrite);
+			if (pText.openStatus() == Acad::eOk)
+				pText->setWidthFactor(w);
+		}
+	} else if (m_textType == TETextType::MText) {
+		AcDbObjectPointer<AcDbMText> pMText(m_entId, AcDb::kForWrite);
+		if (pMText.openStatus() == Acad::eOk)
+			pMText->setWidth(w);
 	}
-	} else if (texttype==MTEXT) {
-		AcDbMText * pEnt;
-		AOK(acdbOpenAcDbEntity((AcDbEntity*&)pEnt,EntId, AcDb::kForWrite));
-		pEnt->setWidth(w);
-		pEnt->close();
+	RefreshDisplay();
+	ShowCaretPos();
+}
+
+//-----------------------------------------------------------------------------
+//- EN_SELCHANGE arrives before the control finished updating its selection,
+//- so the real work is posted to run afterwards.
+void CTEDialog::OnSelChange(NMHDR *, LRESULT *result)
+{
+	PostMessage(WM_TESELCHANGE);
+	*result = 0;
+}
+
+//-----------------------------------------------------------------------------
+LRESULT CTEDialog::OnTESelChange(WPARAM, LPARAM)
+{
+	ShowCaretPos();
+	ShowTextParams();
+	return TRUE;
+}
+
+//-----------------------------------------------------------------------------
+void CTEDialog::ShowFindDialog(bool findOnly)
+{
+	//- Only one find/replace window at a time; the old code opened a new one
+	//- (and leaked the previous) on every Ctrl+F. CFindReplaceDialog deletes
+	//- itself when its window is destroyed.
+	if (m_pFindDlg) {
+		m_pFindDlg->DestroyWindow();
+		m_pFindDlg = nullptr;
 	}
-	refreshDisplay();
-	ShowCarPos();
+	//- Prefill with the selected text, unless it spans several lines
+	CString selected;
+	EditorGetText(selected, GT_SELECTION);
+	if (selected.Find(_T('\r')) >= 0)
+		selected.Empty();
+	m_pFindDlg = new CFindReplaceDialog();
+	m_pFindDlg->Create(findOnly ? TRUE : FALSE, selected, nullptr, FR_DOWN, this);
+	m_pFindDlg->ShowWindow(SW_SHOW);
 }
+
+void CTEDialog::OnFind() { ShowFindDialog(true); }
+void CTEDialog::OnReplace() { ShowFindDialog(false); }
+
 //-----------------------------------------------------------------------------
-void CTEDialog::OnSelChange(NMHDR *pSel, LRESULT* result ) {
-	::PostMessage(this->m_hWnd, WM_TESELCHANGE, 0, 0);
-}
-//-----------------------------------------------------------------------------
-LRESULT CTEDialog::OnTESelChange(WPARAM, LPARAM) {
-	ShowCarPos();
-	ShowTextParams(edStartLn, edEndLn);
-	return (TRUE);
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::OnFind()
+LRESULT CTEDialog::OnFindReplaceMessage(WPARAM, LPARAM lParam)
 {
-	pFindDlg = new CFindReplaceDialog();
-	pFindDlg->Create(TRUE, NULL, NULL, FR_DOWN, this);
-	pFindDlg->SetActiveWindow();
-	pFindDlg->ShowWindow(TRUE);
-} 
-//-----------------------------------------------------------------------------
-void CTEDialog::OnReplace()
-{
-	pFindDlg = new CFindReplaceDialog();
-	pFindDlg->Create(FALSE, NULL, NULL, FR_DOWN, this);
-	pFindDlg->SetActiveWindow();
-	pFindDlg->ShowWindow(TRUE);
-} 
-//-----------------------------------------------------------------------------
-LRESULT CTEDialog::OnFindReplaceMessage(WPARAM wParam, LPARAM lParam)
-{
-	pFindDlg = CFindReplaceDialog::GetNotifier(lParam);
-    ASSERT(pFindDlg != NULL);
-	if (pFindDlg->IsTerminating()) {
-        pFindDlg = NULL;
+	CFindReplaceDialog *pDlg = CFindReplaceDialog::GetNotifier(lParam);
+	if (!pDlg)
+		return 0;
+	if (pDlg->IsTerminating()) {
+		m_pFindDlg = nullptr;
 		return 0;
 	}
-	FINDREPLACE &fr = pFindDlg->m_fr;
-	if (pFindDlg->FindNext()) {
-		if (!TryFoundMore(fr))
-			::MessageBox((pFindDlg)?pFindDlg->m_hWnd:hwndDialog, CMsg(IDS_SEARCHFIN), CMsg(IDS_INFO), MB_OK);
-	}
-	else if (pFindDlg->ReplaceCurrent())
-	{
-		if (TryFoundMore(fr)) 
-			::SendMessage(hwndEdit, EM_REPLACESEL, TRUE, LPARAM(fr.lpstrReplaceWith));
-		else
-			::MessageBox((pFindDlg)?pFindDlg->m_hWnd:hwndDialog, CMsg(IDS_SEARCHFIN), CMsg(IDS_INFO), MB_OK);
-	}
-	else if (fr.Flags & FR_REPLACEALL) {
-		int i = 0;
+	const FINDREPLACE &fr = pDlg->m_fr;
+	const HWND owner = pDlg->GetSafeHwnd();
+
+	if (pDlg->FindNext()) {
+		if (!FindNext(fr))
+			::MessageBox(owner, LoadMsg(IDS_SEARCHFIN), LoadMsg(IDS_INFO), MB_OK);
+	} else if (pDlg->ReplaceCurrent()) {
+		//- Replace the current match (if the selection is one), then move to
+		//- the next one, like the standard Windows replace dialog. The old
+		//- code replaced the *next* match without showing it first.
+		CString sel;
+		EditorGetText(sel, GT_SELECTION);
+		const bool matchCase = (fr.Flags & FR_MATCHCASE) != 0;
+		if (!sel.IsEmpty() && (matchCase ? sel.Compare(fr.lpstrFindWhat) : sel.CompareNoCase(fr.lpstrFindWhat)) == 0)
+			m_edit.ReplaceSel(fr.lpstrReplaceWith, TRUE);
+		if (!FindNext(fr))
+			::MessageBox(owner, LoadMsg(IDS_SEARCHFIN), LoadMsg(IDS_INFO), MB_OK);
+	} else if (pDlg->ReplaceAll()) {
+		//- Replace All covers the whole text, not just the part after the caret
+		m_edit.SetSel(0, 0);
+		FINDREPLACE down = fr;
+		down.Flags |= FR_DOWN;
+		int count = 0;
+		while (FindNext(down)) {
+			m_edit.ReplaceSel(fr.lpstrReplaceWith, TRUE);
+			count++;
+		}
 		CString msg;
-		while (TryFoundMore(fr)) {
-			::SendMessage(hwndEdit, EM_REPLACESEL, TRUE, LPARAM(fr.lpstrReplaceWith));
-			i++;
-		}
-		if (i==0)
-			msg = CMsg(IDS_SEARCHFIN);
-		else {
-			msg = CFMsg(IDS_REPLACED, i);
-		}
-		::MessageBox((pFindDlg)?pFindDlg->m_hWnd:hwndDialog, msg, CMsg(IDS_INFO), MB_OK);
-		
+		if (count == 0)
+			msg = LoadMsg(IDS_SEARCHFIN);
+		else
+			msg.FormatMessage(LoadMsg(IDS_REPLACED), count);
+		::MessageBox(owner, msg, LoadMsg(IDS_INFO), MB_OK);
 	}
 	return 0;
-} 
+}
+
 //-----------------------------------------------------------------------------
-bool CTEDialog::TryFoundMore(FINDREPLACE &fr)
+bool CTEDialog::FindNext(const FINDREPLACE &fr)
 {
-	FINDTEXT fntext;
-	fntext.lpstrText = fr.lpstrFindWhat;
-	GetSelParams();
-	fntext.chrg.cpMax = -1;
-	if (fr.Flags & FR_DOWN)
-		fntext.chrg.cpMin = edSelEnd;
-	else 
-		fntext.chrg.cpMin = edSelStart;
-	LRESULT FindPos = ::SendMessage(hwndEdit, EM_FINDTEXT, fr.Flags, (LPARAM)&fntext);
-	if (-1 != FindPos)
-	{
-		::SendMessage(hwndEdit, EM_SETSEL, FindPos, FindPos+wcslen(fr.lpstrFindWhat));
-		return true;
+	ReadSelection();
+	FINDTEXTEX ft {};
+	ft.lpstrText = fr.lpstrFindWhat;
+	//- Searching up needs cpMax = 0; -1 means "to the end" only when searching down.
+	if (fr.Flags & FR_DOWN) {
+		ft.chrg.cpMin = m_selEnd;
+		ft.chrg.cpMax = -1;
+	} else {
+		ft.chrg.cpMin = m_selStart;
+		ft.chrg.cpMax = 0;
 	}
-	return false;
+	const WPARAM flags = fr.Flags & (FR_DOWN | FR_MATCHCASE | FR_WHOLEWORD);
+	if (m_edit.SendMessage(EM_FINDTEXTEX, flags, reinterpret_cast<LPARAM>(&ft)) == -1)
+		return false;
+	m_edit.SetSel(ft.chrgText);
+	return true;
 }
+
 //-----------------------------------------------------------------------------
-LRESULT CTEDialog::OnContextMenu(WPARAM wParam, LPARAM lParam)
+LRESULT CTEDialog::OnContextMenu(WPARAM, LPARAM lParam)
 {
-//	HMENU hmenu;   // top-level menu 
-	HMENU hPopup;  // shortcut menu 
-//	if ((hmenu = MyLoadMenu(_hdllInstance, MAKEINTRESOURCE(MENU1))) == NULL) 
-//		return 0;
-//	hPopup = GetSubMenu(hmenu, 0);
-	hPopup = ::GetSubMenu(::GetMenu(m_hWnd), 0);
-//	int cmd = TrackPopupMenuEx(hPopup, TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD, 
-//		GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam), wnd, NULL); 
-	int cmd = TrackPopupMenuEx(hPopup, TPM_LEFTALIGN | TPM_RIGHTBUTTON, 
-		GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), hwndDialog, NULL); 
-	//DestroyMenu(hPopup);
-//	MenuCommand(cmd);
-	::SetFocus(hwndEdit);
-	return 0;	
+	CMenu *pMenu = GetMenu();
+	CMenu *pPopup = pMenu ? pMenu->GetSubMenu(0) : nullptr;
+	if (!pPopup)
+		return 0;
+	//- Signed: coordinates can be negative on multi-monitor setups
+	CPoint pt(static_cast<short>(LOWORD(lParam)), static_cast<short>(HIWORD(lParam)));
+	//- Shift+F10 and the menu key send (-1, -1): open the menu at the caret
+	if (lParam == -1) {
+		pt = m_edit.GetCaretPos();
+		m_edit.ClientToScreen(&pt);
+	}
+	pPopup->TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, this);
+	m_edit.SetFocus();
+	return 0;
 }
+
 //-----------------------------------------------------------------------------
 void CTEDialog::OnEditMenuItems(UINT nID)
 {
-	UINT msg; 
-	LPARAM lp = 0;
 	switch (nID) {
-	case ID_SELECTALL: msg = EM_SETSEL, lp = -1; break;
-	case ID_CUT: msg = WM_CUT; break;
-	case ID_COPY: msg = WM_COPY; break;
-	case ID_PASTE: msg = WM_PASTE; break;
-	case ID_UNDO: msg = EM_UNDO; break;
-	case ID_REDO: msg = EM_REDO; break;
+	case ID_SELECTALL: m_edit.SetSel(0, -1); break;
+	case ID_CUT:       m_edit.Cut(); break;
+	case ID_COPY:      m_edit.Copy(); break;
+	case ID_PASTE:     m_edit.Paste(); break;
+	case ID_UNDO:      m_edit.Undo(); break;
+	case ID_REDO:      m_edit.Redo(); break;
 	}
-	::SendMessage(hwndEdit, msg, 0, lp);
 }
+
 //-----------------------------------------------------------------------------
 void CTEDialog::OnAbout()
 {
-	DialogBox(_hdllInstance,MAKEINTRESOURCE(ABOUTDLG),hwndDialog,&AboutDlgProc);	
-} 
+	::DialogBox(_hdllInstance, MAKEINTRESOURCE(ABOUTDLG), m_hWnd, &AboutDlgProc);
+}
+
 //-----------------------------------------------------------------------------
 void CTEDialog::OnFont()
 {
-	CHOOSEFONT cf;           
-	LOGFONT lf;       
-
-	ZeroMemory(&lf, sizeof(lf));
-	lstrcpyn(lf.lfFaceName, EditorFontName, LF_FACESIZE);
+	LOGFONT lf {};
+	lstrcpyn(lf.lfFaceName, g_settings.fontName, LF_FACESIZE);
 	lf.lfCharSet = DEFAULT_CHARSET;
-
-	HDC DC = ::GetDC(0);
-	lf.lfHeight = -MulDiv (EditorFontSize, GetDeviceCaps(DC, LOGPIXELSY), 72); 
-	::ReleaseDC(0,DC);
-
-	ZeroMemory(&cf, sizeof(CHOOSEFONT));
-	cf.lStructSize = sizeof (CHOOSEFONT);
-	cf.hwndOwner = hwndDialog;
-	cf.lpLogFont = &lf;
-	cf.Flags = CF_SCREENFONTS | CF_FORCEFONTEXIST | CF_INITTOLOGFONTSTRUCT;
-
-	if (ChooseFont(&cf))
 	{
-		EditorFontSize = cf.iPointSize/10;
-		lstrcpyn(EditorFontName, lf.lfFaceName, LF_FACESIZE);
-	
-		HKEY prodKey;
-		if (CreateKey(HKEY_CURRENT_USER, pAppInfoLocFull, prodKey) == ERROR_SUCCESS)
-		{
-			RegSetValueEx(prodKey, sFontSize, 0, REG_DWORD, 
-				(LPBYTE)&EditorFontSize, sizeof(EditorFontSize));
-			RegSetValueEx(prodKey, sFontName, 0, REG_SZ, 
-				(LPBYTE)&EditorFontName, sizeof(EditorFontName));
-		}
-		SetFont(EditorFontName, EditorFontSize);
+		CClientDC dc(this);
+		lf.lfHeight = -MulDiv(static_cast<int>(g_settings.fontSize), dc.GetDeviceCaps(LOGPIXELSY), 72);
 	}
+	CFontDialog dlg(&lf, CF_SCREENFONTS | CF_FORCEFONTEXIST | CF_INITTOLOGFONTSTRUCT, nullptr, this);
+	if (dlg.DoModal() != IDOK)
+		return;
+	g_settings.fontSize = dlg.GetSize() / 10;
+	g_settings.fontName = dlg.GetFaceName();
+	g_settings.Save();
+	ApplyEditorFont();
 }
+
 //-----------------------------------------------------------------------------
-void CTEDialog::OnOptionExitOnEnter() {
-	SwitchItem(ExitOnEnter, sExitOnEnter);
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::OnOptionExitOnCtrlEnter() {
-	SwitchItem(ExitOnCtrlEnter, sExitOnCtrlEnter);
-}
-//-----------------------------------------------------------------------------
-void CTEDialog::OnOptionFastYAlign() {
-	SwitchItem(FastYAlign, sFastYAlign);
-}
-//-----------------------------------------------------------------------------
-BOOL CTEDialog::PreTranslateMessage(MSG* pMsg)
+void CTEDialog::ToggleOption(DWORD &option)
 {
-	if (TranslateAccelerator(hwndDialog, accel, pMsg))
+	option = !option;
+	UpdateMenuItems();
+	g_settings.Save();
+}
+
+void CTEDialog::OnOptionExitOnEnter() { ToggleOption(g_settings.exitOnEnter); }
+void CTEDialog::OnOptionExitOnCtrlEnter() { ToggleOption(g_settings.exitOnCtrlEnter); }
+void CTEDialog::OnOptionFastYAlign() { ToggleOption(g_settings.fastYAlign); }
+
+//-----------------------------------------------------------------------------
+BOOL CTEDialog::PreTranslateMessage(MSG *pMsg)
+{
+	if (m_accel && ::TranslateAccelerator(m_hWnd, m_accel, pMsg))
 		return TRUE;
-	if ((pMsg->message == WM_KEYDOWN) && (pMsg->wParam == VK_RETURN))
-	{
-		if ((pMsg->hwnd == hwndHeight) || (pMsg->hwnd == hwndLineSpace) ||
-			(pMsg->hwnd == hwndWidth)) {
-			::SetFocus(hwndEdit);
+	if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN) {
+		const int id = ::GetDlgCtrlID(pMsg->hwnd);
+		//- Enter in a numeric field confirms it and returns to the text
+		if (id == IDC_HEIGHT || id == IDC_LINESPACE || id == IDC_WIDTH) {
+			m_edit.SetFocus();
 			return TRUE;
 		}
-	}
-
-	if (pMsg->hwnd == hwndEdit) {
-		if ((pMsg->message == WM_KEYDOWN) && (pMsg->wParam == VK_RETURN))
-			if (ExitOnEnter || (ExitOnCtrlEnter && (::GetKeyState(VK_CONTROL) < 0))) {
+		if (pMsg->hwnd == m_edit.GetSafeHwnd()) {
+			const bool ctrl = ::GetKeyState(VK_CONTROL) < 0;
+			if (g_settings.exitOnEnter || (g_settings.exitOnCtrlEnter && ctrl)) {
 				OnClose();
 				return TRUE;
 			}
+		}
 	}
-#ifdef _BRX
-	if (pMsg->message == WM_KEYDOWN) 
-		return ::IsDialogMessage(CTEDialog::dlg->hwndDialog, pMsg);
-	return FALSE;
-#else
 	return CAcUiDialog::PreTranslateMessage(pMsg);
-#endif
 }
-//-----------------------------------------------------------------------------

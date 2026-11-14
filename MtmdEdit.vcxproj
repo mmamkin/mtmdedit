@@ -1,145 +1,98 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <ItemGroup>
-    <ProjectConfiguration Include="arx2012|Win32">
-      <Configuration>arx2012</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="arx2012|x64">
-      <Configuration>arx2012</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="arx2013|Win32">
-      <Configuration>arx2013</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="arx2013|x64">
-      <Configuration>arx2013</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
+<!--
+  MtmdEdit for AutoCAD 2027 (ObjectARX 2027, release R26.0, x64 only).
 
-    <ProjectConfiguration Include="arx2015|Win32">
-      <Configuration>arx2015</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="arx2015|x64">
-      <Configuration>arx2015</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
+  AutoCAD 2027 is binary compatible only with itself, so one configuration
+  targets exactly that release. Older AutoCAD / BricsCAD configurations were
+  dropped: their SDKs need toolsets (v90-v142) that no current Visual Studio
+  ships, so they could no longer be built anyway. See git history for them.
 
-    <ProjectConfiguration Include="arx2018|Win32">
-      <Configuration>arx2018</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="arx2018|x64">
-      <Configuration>arx2018</Configuration>
+  The SDK location comes from the ObjectArxDir property, which defaults to the
+  OBJECTARX2027 environment variable, e.g.:
+    set OBJECTARX2027=C:\ObjectARX 2027\
+-->
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-
-    <ProjectConfiguration Include="arx2019|Win32">
-      <Configuration>arx2019</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="arx2019|x64">
-      <Configuration>arx2019</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-
-    <ProjectConfiguration Include="arx2020|Win32">
-      <Configuration>arx2020</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="arx2020|x64">
-      <Configuration>arx2020</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-
-    <ProjectConfiguration Include="arx2021|x64">
-      <Configuration>arx2021</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-
-    <ProjectConfiguration Include="brx13|Win32">
-      <Configuration>brx13</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="brx13|x64">
-      <Configuration>brx13</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="brx14|Win32">
-      <Configuration>brx14</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="brx14|x64">
-      <Configuration>brx14</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="brx15|Win32">
-      <Configuration>brx15</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="brx15|x64">
-      <Configuration>brx15</Configuration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{001ACC4F-DB1D-7561-794A-DCA1B8E79534}</ProjectGuid>
-    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
+    <RootNamespace>MtmdEdit</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ObjectArxDir Condition="'$(ObjectArxDir)'=='' and '$(OBJECTARX2027)'!=''">$(OBJECTARX2027)</ObjectArxDir>
+    <ObjectArxDir Condition="'$(ObjectArxDir)'==''">C:\ObjectARX 2027\</ObjectArxDir>
+    <ObjectArxDir Condition="!HasTrailingSlash('$(ObjectArxDir)')">$(ObjectArxDir)\</ObjectArxDir>
   </PropertyGroup>
-  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.default.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <!-- Autodesk recommends v145 (VS 2026) for ObjectARX 2027; v143 (VS 2022 17.14) also works. -->
+    <PlatformToolset>v145</PlatformToolset>
     <UseOfMfc>Dynamic</UseOfMfc>
     <CharacterSet>Unicode</CharacterSet>
     <WholeProgramOptimization>false</WholeProgramOptimization>
   </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='arx2013|Win32'">
-    <PlatformToolset>v141</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='arx2012|Win32'">
-    <PlatformToolset>v141</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='arx2015|Win32'">
-    <PlatformToolset>v141</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='arx2012|x64'">
-    <PlatformToolset>v141</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='arx2013|x64'">
-    <PlatformToolset>v141</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='arx2015|x64'">
-    <PlatformToolset>v141</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='arx2019|x64'">
-    <PlatformToolset>v141</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='brx13|Win32'">
-    <PlatformToolset>v141</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='brx14|Win32'">
-    <PlatformToolset>v141</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='brx15|Win32'">
-    <PlatformToolset>v141</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='brx13|x64'">
-    <PlatformToolset>v141</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='brx15|x64'">
-    <PlatformToolset>v141</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='brx14|x64'">
-    <PlatformToolset>v141</PlatformToolset>
-  </PropertyGroup>
-  <Import Project="$(ProjectDir)_Mtmd.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <Import Project="$(ProjectDir)_Mtmd.targets" />
+  <PropertyGroup>
+    <TargetName>MtmdEdit2027</TargetName>
+    <TargetExt>.arx</TargetExt>
+    <OutDir>$(ProjectDir)Out\</OutDir>
+    <IntDir>$(ProjectDir)Build\$(Configuration)-$(Platform)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(ObjectArxDir)inc;$(ObjectArxDir)inc-x64;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN64;_WINDOWS;_AFXEXT;_AFXDLL;ACRXAPP;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <ConformanceMode>true</ConformanceMode>
+      <!-- ObjectARX is always linked against the release CRT, even in Debug builds
+           (StdAfx.h hides _DEBUG from the MFC headers for the same reason). -->
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>StdAfx.h</PrecompiledHeaderFile>
+      <WarningLevel>Level3</WarningLevel>
+      <StringPooling>true</StringPooling>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(ObjectArxDir)lib-x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <!-- arxHeaders.h links the UI libraries via #pragma comment, but not the
+           core ones (AcString's destructor needs acHeapFree from rxapi.lib). -->
+      <AdditionalDependencies>rxapi.lib;acdb26.lib;acge26.lib;ac1st26.lib;AcPal.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Windows</SubSystem>
+      <EnableUAC>false</EnableUAC>
+      <TargetMachine>MachineX64</TargetMachine>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_AFXDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\acrxEntryPoint.cpp" />
-    <ClCompile Include="src\DocData.cpp" />
     <ClCompile Include="src\MtmdEdit.cpp" />
     <ClCompile Include="src\TEDialog.cpp" />
     <ClCompile Include="src\StdAfx.cpp">
@@ -147,13 +100,16 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\DocData.h" />
-    <ClInclude Include="src\Resource.h" />
+    <ClInclude Include="src\resource.h" />
     <ClInclude Include="src\StdAfx.h" />
+    <ClInclude Include="src\TEDialog.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="src\MtmdEdit.rc" />
   </ItemGroup>
+  <Target Name="CheckObjectArx" BeforeTargets="ClCompile">
+    <Error Condition="!Exists('$(ObjectArxDir)inc\arxHeaders.h')"
+           Text="ObjectARX 2027 SDK not found in '$(ObjectArxDir)'. Install it and set the OBJECTARX2027 environment variable (or pass /p:ObjectArxDir=...)." />
+  </Target>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets" />
 </Project>

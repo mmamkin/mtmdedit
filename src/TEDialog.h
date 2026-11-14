@@ -1,92 +1,64 @@
-// (C) Copyright 2002-2005 by Autodesk, Inc. 
-//
-// Permission to use, copy, modify, and distribute this software in
-// object code form for any purpose and without fee is hereby granted, 
-// provided that the above copyright notice appears in all copies and 
-// that both that copyright notice and the limited warranty and
-// restricted rights notice below appear in all supporting 
-// documentation.
-//
-// AUTODESK PROVIDES THIS PROGRAM "AS IS" AND WITH ALL FAULTS. 
-// AUTODESK SPECIFICALLY DISCLAIMS ANY IMPLIED WARRANTY OF
-// MERCHANTABILITY OR FITNESS FOR A PARTICULAR USE.  AUTODESK, INC. 
-// DOES NOT WARRANT THAT THE OPERATION OF THE PROGRAM WILL BE
-// UNINTERRUPTED OR ERROR FREE.
-//
-// Use, duplication, or disclosure by the U.S. Government is subject to 
-// restrictions set forth in FAR 52.227-19 (Commercial Computer
-// Software - Restricted Rights) and DFAR 252.227-7013(c)(1)(ii)
-// (Rights in Technical Data and Computer Software), as applicable.
-//
-
 //-----------------------------------------------------------------------------
 //----- TEDialog.h : Declaration of the CTEDialog
 //-----------------------------------------------------------------------------
 #pragma once
 
-//-----------------------------------------------------------------------------
 #include "acui.h"
-#include "afxwin.h"
-#include "afxcmn.h"
 
-typedef enum TETextType { UNKNOWN, DTEXT, MTEXT, DIMENSION } TETextType;
-extern DWORD ExitOnEnter, ExitOnCtrlEnter, FastYAlign;
+//- Posted from EN_SELCHANGE, see CTEDialog::OnSelChange
+#define WM_TESELCHANGE (WM_USER + 10)
+
+enum class TETextType { Unknown, DText, MText, Dimension };
+
 //-----------------------------------------------------------------------------
-class CMsg : public CString {
-private:
-public:
-	CMsg(UINT uID) 
-	{
-		CString();
-		if (uID)
-			if (!LoadString(_hdllInstance, uID, GetUserDefaultLangID()))
-				LoadString(_hdllInstance, uID, MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US));
-	}
-};
+//- Loads a string resource in the user's UI language, falling back to English
+//- (the .rc only carries Russian and English string tables).
+CString LoadMsg(UINT id);
+
 //-----------------------------------------------------------------------------
-class CFMsg : public CString {
-private:
-public:
-	CFMsg(UINT uID,...)
-	{
-		CString();
-		if (uID)
-			if (!LoadString(_hdllInstance, uID, GetUserDefaultLangID()))
-				LoadString(_hdllInstance, uID, MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US));
-		// Format message into temporary buffer lpszTemp
-		va_list argList;
-		va_start(argList, uID);
-		LPTSTR lpszTemp;
-		if (::FormatMessage(FORMAT_MESSAGE_FROM_STRING|FORMAT_MESSAGE_ALLOCATE_BUFFER,
-			GetBuffer(), 0, 0, (LPTSTR)&lpszTemp, 0, &argList) == 0 ||
-			lpszTemp == NULL)
-		{
-			AfxThrowMemoryException();
-		}
-// Copy lpszTemp into the result string
-		CString::operator=(lpszTemp); // Compatible with VC6 and VC7.
-// Clean-up
-		LocalFree(lpszTemp);
-		va_end(argList);
-	}
+//- User options persisted in HKCU\Software\Mtmlab\MtmdEdit.
+struct TESettings {
+	DWORD exitOnEnter = 0;
+	DWORD exitOnCtrlEnter = 0;
+	DWORD fastYAlign = 0;
+	CString fontName;
+	DWORD fontSize = 10;
+
+	void Load();
+	void Save() const;
 };
+extern TESettings g_settings;
+
 //-----------------------------------------------------------------------------
 class CTEDialog : public CAcUiDialog {
 	DECLARE_DYNAMIC (CTEDialog)
+public:
+	enum { IDD = EDITDLG };
+
+	explicit CTEDialog (CWnd *pParent = nullptr, HINSTANCE hInstance = nullptr);
+
+	//- Reads the picked entities. Returns false when nothing editable was picked.
+	bool LoadSelection(const ads_name sset);
+
 protected:
-	virtual void DoDataExchange (CDataExchange *pDX) ;
-    //{{AFX_MSG(CTEDialog)
+	void DoDataExchange (CDataExchange *pDX) override;
+	BOOL OnInitDialog() override;
+	//- CAdUiBaseDialog hook run at the end of OnInitDialog; the resize layout
+	//- has to be registered there, after the base dialog captured control sizes.
+	virtual void OnInitDialogFinish();
+	BOOL PreTranslateMessage(MSG*) override;
+
 	afx_msg LRESULT OnKickIdle(WPARAM, LPARAM);
-	afx_msg LRESULT OnTESelChange (WPARAM, LPARAM) ;
+	afx_msg LRESULT OnTESelChange (WPARAM, LPARAM);
 	afx_msg BOOL OnSetCursor(CWnd*, UINT, UINT);
 	afx_msg LRESULT OnContextMenu(WPARAM, LPARAM);
 	afx_msg void OnClose();
-	afx_msg void OnEnChangeEdit1();
+	afx_msg void OnEnChangeEdit();
 	afx_msg void OnEnChangeStyle();
 	afx_msg void OnEnChangeHeight();
 	afx_msg void OnEnChangeLineSpace();
 	afx_msg void OnEnChangeWidth();
-	afx_msg void OnSelChange(NMHDR *pSel, LRESULT* result );
+	afx_msg void OnSelChange(NMHDR *pSel, LRESULT* result);
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnAlignX();
 	afx_msg void OnAlignY();
@@ -100,69 +72,69 @@ protected:
 	afx_msg void OnOptionExitOnEnter();
 	afx_msg void OnOptionExitOnCtrlEnter();
 	afx_msg void OnOptionFastYAlign();
-
 	afx_msg LRESULT OnFindReplaceMessage(WPARAM wParam, LPARAM lParam);
-    //}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
-public:
-	static CTEDialog *dlg;
-	static UINT FindReplaceDialogMessage;
-	static CFindReplaceDialog *pFindDlg;
-	static void UpdateRegistry();
-	AcDbObjectId EntId; //for DIM or MTEXT
-	AcDbObjectIdArray DTextArr;
-	double DtextAngle, LineSpace, TextHeight, WidthFactor;
-	double cos_a, sin_a, dx, dy, x_1, y_1;
-	long edSelStart, edSelEnd, edStartLn, edEndLn;
-	long edCol;
 
-	bool useevent, bNeedUpdStbar, textchanged;
-	HACCEL accel;
-	HWND ControlOnIdle;
-	HWND hwndDialog, hwndEdit, hwndStyle, hwndHeight, hwndWidth, hwndLineSpace, hwndAlignX, hwndAlignY;
-	ads_name sset;
-	enum { IDD = EDITDLG} ;
-	enum TETextType texttype;
-	void ShowDlg();
-	virtual BOOL PreTranslateMessage(MSG*);
-	void SwitchItem(DWORD &ItemVar, LPCTSTR ItemName);
-	void SetFont(LPTSTR FontName, int FontSize);
-	void GetLine(int i, CString& s);
-	static void Cleanup();
-	bool ParseSset();
-	bool TryFoundMore(FINDREPLACE &fr);
+private:
+	static const UINT s_findReplaceMsg;
+
+	//- Entities being edited: one MTEXT/DIMENSION, or a list of DTEXT lines
+	//- sorted top to bottom along the text direction.
+	TETextType m_textType = TETextType::Unknown;
+	AcDbObjectId m_entId;
+	AcDbObjectIdArray m_dtexts;
+
+	//- Values shown in the toolbar edits
+	double m_lineSpace = 0.0, m_textHeight = 0.0, m_widthFactor = 0.0;
+	//- Rotation of the first DTEXT and its insertion point; all DTEXT
+	//- alignment maths runs in that rotated frame.
+	double m_cosA = 1.0, m_sinA = 0.0, m_x1 = 0.0, m_y1 = 0.0;
+	//- Offset between successive DTEXT lines in WCS
+	double m_dx = 0.0, m_dy = 0.0;
+
+	long m_selStart = 0, m_selEnd = 0, m_startLn = 0, m_endLn = 0, m_col = 0;
+
+	//- Suppresses EN_CHANGE handlers while the dialog fills the controls itself
+	bool m_useEvents = false;
+	bool m_needStatusUpdate = false;
+	HACCEL m_accel = nullptr;
+	HWND m_hoverCtrl = nullptr;
+	CFindReplaceDialog *m_pFindDlg = nullptr;
+
+	CRichEditCtrl m_edit;
+	CComboBox m_style;
+	CStatusBarCtrl m_statusBar;
+
+	bool IsDText() const { return m_textType == TETextType::DText; }
+
+	// Selection / geometry helpers
+	void ReadDTextLineSpace();
 	void SortDText();
+	AcGePoint3d GetInsPoint(AcDbObjectId id) const;
+	void SetInsPoint(AcDbObjectId id, const AcGePoint3d &insPoint) const;
+
+	// Text style helpers
 	void FillStyles();
-	void GetStyleId(CString& s, AcDbObjectId& StyleId);
-	const TCHAR* GetTextStyle(int index);
-	void SetTextStyle(int index, CString& s);
-	int GetDlgItemFloat(int Item, double &AValue);
-	void SetDlgItemFloat(int Item, double AValue);
-	void setDTEXTHeight(int index, double height);
-	AcGePoint3d GetInsPoint(AcDbObjectId EntId);
-	void SetInsPoint(AcDbObjectId EntId,AcGePoint3d inspoint);
-	double GetDTEXTLineSpace();
-	double GetMTEXTLineSpace();
-	Acad::ErrorStatus setMTextLSpace(double& lspace);
+	CString GetTextStyleName(int index) const;
+	void SetTextStyle(int index, const CString &name);
+
+	// Database <-> editor transfer
+	void PushTextToDb();
+	void LoadTextFromDb();
+	void EditorGetText(CString &s, DWORD flags);
+	void EditorSetText(const CString &s, DWORD flags);
+	CString GetEditorLine(int i);
+
+	// UI helpers
+	bool GetDlgItemDouble(int item, double &value) const;
+	void SetDlgItemDouble(int item, double value);
+	void ApplyEditorFont();
 	void UpdateMenuItems();
-	void GetEntText(AcDbEntity *pEnt, TETextType tt, CString &str);
-	void GetObjIdText(AcDbObjectId eId, TETextType tt, CString &str);
-	void settext();
-	void gettext();
-	void rtfSetText(const CString &s, DWORD flags);
-	void rtfGetText(CString &s, DWORD flags);
-	void GetSelParams();
-	void ShowCarPos();
-	void ShowTextParams(long edStartLn, long edEndLn);
-	CTEDialog (CWnd *pParent =NULL, HINSTANCE hInstance =NULL);
-	void UpdateStatus();
-	BOOL OnInitDialog();
-	virtual void OnInitDialogStart();
-	virtual void OnInitDialogFinish();
-	CRichEditCtrl edEdit;
-	CButton btCancel;
-	CComboBox cbStyle;
-	CButton btAlignX;
-	CButton btAlignY;
-	CStatusBarCtrl stBar;
-} ;
+	void UpdateStatusLayout();
+	void ReadSelection();
+	void ShowCaretPos();
+	void ShowTextParams();
+	void ToggleOption(DWORD &option);
+	void ShowFindDialog(bool findOnly);
+	bool FindNext(const FINDREPLACE &fr);
+};
